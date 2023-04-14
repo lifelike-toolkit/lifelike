@@ -1,5 +1,6 @@
 """
-Character handler class, will assume that the only target of conversation is the player itself
+Character class
+Will assume that the only target of conversation is the player itself
 Mostly boilerplate as of rn
 """
 import json
