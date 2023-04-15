@@ -3,3 +3,5 @@ beautifulsoup4
 openai
 streamlit
 flask
+torch
+transformers
