@@ -28,7 +28,7 @@ def chat(character_model, tokenizer):
 
 if __name__ == "__main__":
     # Load the fine-tuned GPT-2 model and tokenizer
-    chosen_character = "NICK WILDE"
+    chosen_character = "NICK"
     model_path = "./gpt2_character"
     tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
     character_model = GPT2LMHeadModel.from_pretrained(model_path)

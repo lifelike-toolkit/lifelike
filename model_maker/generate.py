@@ -50,6 +50,6 @@ def train_gpt2_on_character(dialogue, character):
     trainer.save_model("./gpt2_character")
 
 # Fine-tune the GPT-2 model on the chosen character's dialogue
-chosen_character = "NICK"
+chosen_character = "NICK WILDE"
 dialogue = cleaner.extract_dialogue("Zootopia.txt")
 train_gpt2_on_character(dialogue, chosen_character)
