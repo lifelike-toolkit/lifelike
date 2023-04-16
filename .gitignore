@@ -164,4 +164,3 @@ config.json
 *.txt
 *.bin
 *.lock
-gpt2_character
