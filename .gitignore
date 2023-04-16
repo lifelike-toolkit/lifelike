@@ -160,3 +160,8 @@ cython_debug/
 #.idea/
 
 config.json
+.streamlit
+*.txt
+*.bin
+*.lock
+gpt2_character

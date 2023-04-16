@@ -7,7 +7,7 @@ def generate_response(prompt, model, tokenizer):
     This function takes a prompt and generates a response using the fine-tuned GPT-2 model.
     """
     inputs = tokenizer.encode(prompt, return_tensors="pt")
-    outputs = model.generate(inputs, max_length=150, num_return_sequences=1, no_repeat_ngram_size=2)
+    outputs = model.generate(inputs, max_length=150, num_return_sequences=1, no_repeat_ngram_size=2, pad_token_id=tokenizer.eos_token_id)
     response = tokenizer.decode(outputs[0], skip_special_tokens=True)
     return response
 
@@ -22,15 +22,16 @@ def chat(character_model, tokenizer):
         if user_input.lower() == "quit":
             break
 
-        prompt = chosen_character + ": " + user_input
+        prompt = "Me to " + chosen_character + ": " + user_input + "\n" + chosen_character + ": "
         response = generate_response(prompt, character_model, tokenizer)
-        print(f"{chosen_character}: {response}")
+        print(f"{response}")
 
-# Load the fine-tuned GPT-2 model and tokenizer
-chosen_character = "NICK"
-model_path = "./gpt2_character"
-tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
-character_model = GPT2LMHeadModel.from_pretrained(model_path)
+if __name__ == "__main__":
+    # Load the fine-tuned GPT-2 model and tokenizer
+    chosen_character = "NICK WILDE"
+    model_path = "./gpt2_character"
+    tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+    character_model = GPT2LMHeadModel.from_pretrained(model_path)
 
-# Start the chat app
-chat(character_model, tokenizer)
+    # Start the chat app
+    chat(character_model, tokenizer)
