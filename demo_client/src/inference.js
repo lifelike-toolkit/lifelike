@@ -3,7 +3,7 @@
 /*global BigInt64Array */
 
 import { loadTokenizer } from './bert_tokenizer.ts';
-import * as wasmFeatureDetect from 'wasm-feature-detect';
+// import * as wasmFeatureDetect from 'wasm-feature-detect';
 
 //Setup onnxruntime 
 const ort = require('onnxruntime-web');
@@ -28,7 +28,7 @@ const options = {
 };
 
 var downLoadingModel = true;
-const model = "./xtremedistill-go-emotion-int8.onnx";
+const model = "xtremedistill-go-emotion-int8.onnx";
 
 const session = ort.InferenceSession.create(model, options);
 session.then(t => { 
@@ -38,6 +38,8 @@ session.then(t => {
     console.log("Inference warmup " + i);
     lm_inference("this is a warmup inference");
   }
+}).catch(e => {
+  console.log(e)
 });
 
 const tokenizer = loadTokenizer()
