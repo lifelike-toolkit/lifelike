@@ -13,7 +13,8 @@ class TextInputArea extends React.Component {
     this.state = {
       text: 'Enter text to classify emotion, model trained on English text.',
       disabled: true,
-      downloading:modelDownloadInProgress()
+      downloading:modelDownloadInProgress(),
+      response: "Connor walks up to me and asks a question.\n Connor: Yo you up to talk right now?"
     };
     this.handleChangeText = this.handleChangeText.bind(this);
     this.handleSubmitText = this.handleSubmitText.bind(this);
@@ -70,6 +71,7 @@ class TextInputArea extends React.Component {
       <div className="App">
       <header className="App-header">   
       <em>Cool Over-protective Dad</em>
+      <div><font size="3">A game about a pretty cool dad, who happens to be a little over-protective</font></div>
       <div><font size="3">Writer: Connor Killingbeck</font></div>
       <div><font size="3">Programmer: Khoa Nguyen</font></div>
       {this.state.data ? this.state.data.map(data => data + "\n") : null}
