@@ -7,3 +7,4 @@ transformers
 onnx
 onnxruntime
 datasets
+chromadb
