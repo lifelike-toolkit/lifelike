@@ -69,7 +69,9 @@ class TextInputArea extends React.Component {
     return (
       <div className="App">
       <header className="App-header">   
-      <em>In-Browser Transformer Inference</em>
+      <em>Cool Over-protective Dad</em>
+      <div><font size="3">Writer: Connor Killingbeck</font></div>
+      <div><font size="3">Programmer: Khoa Nguyen</font></div>
       {this.state.data ? this.state.data.map(data => data + "\n") : null}
       
       {this.state.downloading && 
