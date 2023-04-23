@@ -8,3 +8,5 @@ onnx
 onnxruntime
 datasets
 chromadb
+flask
+flask-cors

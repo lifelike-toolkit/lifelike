@@ -6,6 +6,7 @@ client = chromadb.Client(Settings(chroma_api_impl="rest",
                                   chroma_server_host="localhost",
                                   chroma_server_http_port=8000)) 
 
+client.reset()
 collection = client.create_collection(name="cool_overprotective_dad")
 
 # Mostly here for reference
@@ -57,11 +58,11 @@ collection.add(
     ],
     documents=["Intro Question", "Early ending", "Neutral ending", "Good Opinion Ending", "Bad opinion ending"],
     metadatas=[
-        {"reachableSequences": {"sequence4": {}, "sequence5": {}}, "reaction": "Connor: That's my boy! Follow me #Follow Connor to the kitchen# Now what is your opinion on the geopolitical state of kitchen equipments?"}, 
-        {"reachableSequences": {}, "reaction": "Connor: Damn that's crazy, now get out of my house"}, 
-        {"reachableSequences": {}, "reaction": "Connor: Seriously, nothing? Guess you aren't the one to ask"},
-        {"reachableSequences": {}, "reaction": "Connor: Yeah, it's great!"},
-        {"reachableSequences": {}, "reaction": "Connor: Yeah, bad"}
+        {"reachableSequences": '{"sequences": ["sequence4", "sequence5"]}', "reaction": "Connor: That's my boy! Follow me #Follow Connor to the kitchen# Now what is your opinion on the geopolitical state of kitchen equipments?"}, 
+        {"reachableSequences": '{"sequences": []}', "reaction": "Connor: Damn that's crazy, now get out of my house"}, 
+        {"reachableSequences": '{"sequences": []}', "reaction": "Connor: Seriously, nothing? Guess you aren't the one to ask"},
+        {"reachableSequences": '{"sequences": []}', "reaction": "Connor: Yeah, it's great!"},
+        {"reachableSequences": '{"sequences": []}', "reaction": "Connor: Yeah, bad"}
     ],
     ids=["sequence1", "sequence2", "sequence3", "sequence4", "sequence5",]
 )
