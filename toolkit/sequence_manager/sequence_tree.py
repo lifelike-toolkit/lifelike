@@ -5,8 +5,10 @@ Tunes sequence embeddings to allow the game to more accurately predict player's 
 import numpy
 from typing import Callable
 
+from state import *
+
 class PathEmbedding:
-    """An embedding class that can be assigned to sequence paths"""
+    """Path embedding dictionary that stores, calculate and allows for retrieval of different preset embeddings"""
     def __init__(self, name: str, embedding_function: Callable[[list], list], dims: int, current_embedding: list=None, current_weight: int=0) -> None:
         """
         Constructor
@@ -14,8 +16,8 @@ class PathEmbedding:
             - name: identifier
             - embedding_function: the function that takes a batch of responses and returns the corresponding batch of embeddings
             - dims: number of dimensionse. e.g. 28 emotions -> 28-d embedding TODO: is this necessary? currently here for consistency
-            - current_embedding: the current embedding loaded from json. Defaulted to None.
-            - current_weight: the current weight loaded from json. If current_weight is 0, the current_embedding will be ignored. Defaulted to 0.
+            - current_embedding: the current embedding loaded from json, or pre-determined to bypass tuning. Defaulted to None.
+            - current_weight: the current weight loaded from json (use 1 to bypass tuning). If current_weight is 0, the current_embedding will be ignored. Defaulted to 0.
         """
         self.name = name
 
@@ -46,7 +48,7 @@ class PathEmbedding:
 
     def add_response(self, responses: list) -> list:
         """
-        Add responses to the embedding and calculates new embedding using weighted average. Allows for tuning.
+        Add responses to the embedding and calculates new embedding using weighted average. Tunes embedding of SequenceEvent.
         Potentially suffers from density bias. Good response choices will depend on choice of embedding function.
         Params:
             -  responses: the list of responses that should be matched to this path_embedding instance
@@ -72,29 +74,57 @@ class PathEmbedding:
 
 class SequenceEvent:
     """
-    High-level abstraction of a sequence event node.
     Describes a game event, or beat that pushes the story forward. The current game state is a sequence_event instance.
     Accessible via the traversal of a sequence_path (unless it is the initial game state).
+    Used in-game to determine valid next sequences.
     """
-    def __init__(self) -> None:
+    def __init__(self, id: str, name: str, reaction: str, requirements: dict=None) -> None:
+        """
+        Constructor.
+        Params:
+            - id: self-explanatory
+            - name: also self-explanatory
+            - reaction: the text prompts given as response to player speech. WIP. TODO: May want to be its own Context class
+            - requirements: a dictionary containing extra requirement, with key-value pair being the dev-defined id of a quantity and its value
+        """
+        self.id = id
+        self.name = name
+        self.context = reaction # Future proofing
+        self.requirements = requirements
+        # TODO: Process formatted reaction string to allow for a segmented event (Allow player to click on an action button or have another character takeover mid conversation)
+    
+    def is_valid(self, game_state: State) -> bool:
+        """Returns whether this event can be accessed given current game state (can be any child classes of State)"""
         pass
 
+    def to_dict(self) -> dict:
+        """
+        Used to save to json as part of configuration
+        Returns: a dict of the form {'id': ..., 'name': ..., 'context': ...} 
+        """
+        return {
+            'id': self.id, 
+            'name': self.name, 
+            'context': self.context
+        }
+
 class SequenceTree:
-    """High-level abstraction of a sequence tree."""
-    def __init__(self, initial_state: SequenceEvent=None) -> None:
+    """High-level abstraction of a sequence tree. The game does not see this."""
+    def __init__(self, initial_event: SequenceEvent=None) -> None:
         """
         Constructor
         Params:
-            - initial_state: the initial event that the player will encounter. Set to None to build tree from json instead. 
+            - initial_event: the initial event that the player will encounter. Set to None to build tree from json instead. 
         """
-        if not initial_state:
-            print("No initial state given. Sequence Tree will need to be built from json using .build().")
-        self.game_state = initial_state
-        self.paths
+        if not initial_event:
+            print("No initial event given. Sequence Tree will need to be built from json using .build().")
+        self.event = initial_event
+        self.paths = {} # Embedding-SequenceEvent key-value pair
 
-    def add_path(self, connecting_sequence: 'SequenceTree'):
+    def add_path(self, connecting_sequence: 'SequenceTree', path_embedding: PathEmbedding):
         """Adding sub tree"""
         pass
+
     def build(path_to_json: str):
         pass
 
