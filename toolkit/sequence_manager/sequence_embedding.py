@@ -80,6 +80,11 @@ def getMeanEmbedding(responses: list, dims: int = 28) -> list:
     assert len(meanEmbedding) == dims
     return meanEmbedding
 
+class sequence_embedding:
+    def __init__(self) -> None:
+        self.responses = 
+
+    def 
 
 if __name__ == "__main__":
     print(getMeanEmbedding(["I hate you", "I love you"]))
