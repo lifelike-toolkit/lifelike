@@ -1,7 +1,12 @@
 requests
-beautifulsoup4
 openai
 streamlit
 flask
 torch
 transformers
+onnx
+onnxruntime
+datasets
+chromadb
+flask
+flask-cors

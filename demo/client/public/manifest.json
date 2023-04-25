@@ -1,0 +1,9 @@
+{
+  "short_name": "Emotion",
+  "name": "Inference with Transformers in the Browser",
+  "icons": [],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#000000",
+  "background_color": "#ffffff"
+}
