@@ -94,7 +94,7 @@ class SequenceTree:
 
     def add_path(self, connecting_sequence: 'SequenceTree'):
         """Adding sub tree"""
-
+        pass
     def build(path_to_json: str):
         pass
 
