@@ -1,0 +1,135 @@
+/** */
+/*global BigInt */
+/*global BigInt64Array */
+
+import { loadTokenizer } from './bert_tokenizer.ts';
+// import * as wasmFeatureDetect from 'wasm-feature-detect';
+
+//Setup onnxruntime 
+const ort = require('onnxruntime-web');
+
+//requires Cross-Origin-*-policy headers https://web.dev/coop-coep/
+/**
+const simdResolver = wasmFeatureDetect.simd().then(simdSupported => {
+    console.log("simd is supported? "+ simdSupported);
+    if (simdSupported) {
+      ort.env.wasm.numThreads = 3; 
+      ort.env.wasm.simd = true;
+    } else {
+      ort.env.wasm.numThreads = 1; 
+      ort.env.wasm.simd = false;
+    }
+});
+*/
+
+const options = {
+  executionProviders: ['wasm'], 
+  graphOptimizationLevel: 'all'
+};
+
+var downLoadingModel = true;
+const model = "xtremedistill-go-emotion-int8.onnx";
+
+const session = ort.InferenceSession.create(model, options);
+session.then(t => { 
+  downLoadingModel = false;
+  //warmup the VM
+  for(var i = 0; i < 10; i++) {
+    console.log("Inference warmup " + i);
+    lm_inference("this is a warmup inference");
+  }
+}).catch(e => {
+  console.log(e)
+});
+
+const tokenizer = loadTokenizer()
+
+// The ordering of emotion score
+// const EMOJIS = [
+//   'admiration 👏',
+//   'amusement 😂',
+//   'anger 😡',
+//   'annoyance 😒',
+//   'approval 👍',
+//   'caring 🤗',
+//   'confusion 😕',
+//   'curiosity 🤔',
+//   'desire 😍',
+//   'disappointment 😞',
+//   'disapproval 👎',
+//   'disgust 🤮',
+//   'embarrassment 😳',
+//   'excitement 🤩',
+//   'fear 😨',
+//   'gratitude 🙏',
+//   'grief 😢',
+//   'joy 😃',
+//   'love ❤️',
+//   'nervousness 😬',
+//   'optimism 🤞',
+//   'pride 😌',
+//   'realization 💡',
+//   'relief😅',
+//   'remorse 😞', 
+//   'sadness 😞',
+//   'surprise 😲',
+//   'neutral 😐'
+// ];
+
+function isDownloading() {
+  return downLoadingModel;
+}
+
+function sigmoid(t) {
+  return 1/(1+Math.pow(Math.E, -t));
+}
+
+function create_model_input(encoded) {
+  var input_ids = new Array(encoded.length+2);
+  var attention_mask = new Array(encoded.length+2);
+  var token_type_ids = new Array(encoded.length+2);
+  input_ids[0] = BigInt(101);
+  attention_mask[0] = BigInt(1);
+  token_type_ids[0] = BigInt(0);
+  var i = 0;
+  for(; i < encoded.length; i++) { 
+    input_ids[i+1] = BigInt(encoded[i]);
+    attention_mask[i+1] = BigInt(1);
+    token_type_ids[i+1] = BigInt(0);
+  }
+  input_ids[i+1] = BigInt(102);
+  attention_mask[i+1] = BigInt(1);
+  token_type_ids[i+1] = BigInt(0);
+  const sequence_length = input_ids.length;
+  input_ids = new ort.Tensor('int64', BigInt64Array.from(input_ids), [1,sequence_length]);
+  attention_mask = new ort.Tensor('int64', BigInt64Array.from(attention_mask), [1,sequence_length]);
+  token_type_ids = new ort.Tensor('int64', BigInt64Array.from(token_type_ids), [1,sequence_length]);
+  return {
+    input_ids: input_ids,
+    attention_mask: attention_mask,
+    token_type_ids:token_type_ids
+  }
+}
+
+async function lm_inference(text) {
+  try { 
+    const encoded_ids = await tokenizer.then(t => {
+      return t.tokenize(text); 
+    });
+    if(encoded_ids.length === 0) {
+      return null; // No choice made yet
+    }
+    // const start = performance.now();
+    const model_input = create_model_input(encoded_ids);
+    const output =  await session.then(s => { return s.run(model_input,['output_0'])});
+    // const duration = (performance.now() - start).toFixed(1);
+    const probs = output['output_0'].data.map(sigmoid).map( t => Math.floor(t*100));
+
+    return probs;    
+  } catch (e) {
+    console.err(e)
+  }
+}    
+
+export let inference = lm_inference 
+export let modelDownloadInProgress = isDownloading
