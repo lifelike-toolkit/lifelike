@@ -7,6 +7,9 @@ from typing import Callable
 
 from state import *
 
+from toolkit.database.chromadb_setup import CHROMA_CLIENT
+
+
 class PathEmbedding:
     """Path embedding dictionary that stores, calculate and allows for retrieval of different preset embeddings"""
     def __init__(self, name: str, embedding_function: Callable[[list], list], dims: int, current_embedding: list=None, current_weight: int=0) -> None:
@@ -72,15 +75,12 @@ class PathEmbedding:
             'weight': self.weight
         }
 
-class SequenceEvent:
-    """
-    Describes a game event, or beat that pushes the story forward. The current game state is a sequence_event instance.
-    Accessible via the traversal of a sequence_path (unless it is the initial game state).
-    Used in-game to determine valid next sequences.
-    """
-    def __init__(self, id: str, name: str, reaction: str, requirements: dict=None) -> None:
+
+class SequenceTree:
+    """High-level abstraction of a sequence tree. The game does not need to see this."""
+    def __init__(self, id: str=None, name: str=None, reaction: str=None, requirements: dict=None) -> None:
         """
-        Constructor.
+        Constructor. If all constructors are None, you need to build the tree from JSON with SequenceTree.build()
         Params:
             - id: self-explanatory
             - name: also self-explanatory
@@ -91,42 +91,42 @@ class SequenceEvent:
         self.name = name
         self.context = reaction # Future proofing
         self.requirements = requirements
+        self.paths = {}
         # TODO: Process formatted reaction string to allow for a segmented event (Allow player to click on an action button or have another character takeover mid conversation)
-    
-    def is_valid(self, game_state: State) -> bool:
-        """Returns whether this event can be accessed given current game state (can be any child classes of State)"""
+
+    def build(path_to_json):
+        """Rebuild tree using Json to resume progress"""
+        pass 
+
+    def add_path(self, connecting_sequence: 'SequenceTree', path_embedding: PathEmbedding) -> None:
+        """Adding sub tree. Highly recommend defining all nodes before tying them all together. But a breadth-first approach is possible."""
+        embedding = tuple(path_embedding.get_embedding()) # Needs to be tuple to be used as key, convert back in json
+        self.paths[embedding] = connecting_sequence # Note that if path_embedding is not unique (extremely rare), this may not give the intended result
+
+    def save(self, path_to_json: str):
+        """Saves progress and come back later"""
         pass
 
-    def to_dict(self) -> dict:
-        """
-        Used to save to json as part of configuration
-        Returns: a dict of the form {'id': ..., 'name': ..., 'context': ...} 
-        """
-        return {
-            'id': self.id, 
-            'name': self.name, 
-            'context': self.context
-        }
+    def write_db(self, collection_name: str):
+        """Write current tree to a ChromaDB collection"""
+        collection = CHROMA_CLIENT.get_collection(name=collection_name)
+        # Only need to add the following nodes to chroma, as the starting state does not need to be defined
+        embeddings = []
+        documents = []
+        metadatas=[]
+        ids=[]
 
-class SequenceTree:
-    """High-level abstraction of a sequence tree. The game does not see this."""
-    def __init__(self, initial_event: SequenceEvent=None) -> None:
-        """
-        Constructor
-        Params:
-            - initial_event: the initial event that the player will encounter. Set to None to build tree from json instead. 
-        """
-        if not initial_event:
-            print("No initial event given. Sequence Tree will need to be built from json using .build().")
-        self.event = initial_event
-        self.paths = {} # Embedding-SequenceEvent key-value pair
+        for (embedding_tuple, subtree) in self.paths.items():
+            embeddings.append(list(embedding_tuple))
+            documents.append(subtree.name)
+            ids.append(subtree.id)
+            metadatas.append({
+                "reachableSequences": [seq.id for seq in subtree.paths.values()],
+                "reaction": self.context # TODO Must change later
+            })
 
-    def add_path(self, connecting_sequence: 'SequenceTree', path_embedding: PathEmbedding):
-        """Adding sub tree"""
-        pass
+        collection.add(ids=ids, embeddings=embeddings, metadatas=metadatas, documents=documents)
 
-    def build(path_to_json: str):
-        pass
 
 if __name__ == "__main__":
     from transformers import AutoTokenizer, AutoModelForSequenceClassification, pipeline
