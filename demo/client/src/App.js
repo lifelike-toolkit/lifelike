@@ -69,7 +69,7 @@ class TextInputArea extends React.Component {
             this.setState({
               response: data.metadatas[0][index].reaction,
               current_sequence_name: data.documents[0][index],
-              possible_sequence_ids: possibleSequenceString.sequences
+              possible_sequence_ids: possibleSequenceString
             })
             return
           }

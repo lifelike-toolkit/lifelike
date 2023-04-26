@@ -10,7 +10,7 @@ client = chromadb.Client(Settings(chroma_api_impl="rest",
                                   chroma_server_host="localhost",
                                   chroma_server_http_port=8000)) 
 
-collection = client.get_collection(name="cool_overprotective_dad")
+collection = client.get_collection(name="test")
 
 app = Flask(__name__)
 CORS(app)
@@ -34,7 +34,7 @@ def get_next_sequence(embedding):
     # Query from chromadb
     response = collection.query(
         query_embeddings=embeddingList,
-        n_results = 5, # Leave it for now
+        n_results = 3, # Leave it for now
     )
     # Enable Access-Control-Allow-Origin
     # response.headers.add("Access-Control-Allow-Origin", "*")

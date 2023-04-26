@@ -3,11 +3,12 @@ Meant to be used alongside chromadb, but any vectordb that uses KNN will work to
 Tunes sequence embeddings to allow the game to more accurately predict player's intentions.
 """
 import numpy
+import json
 from typing import Callable
 
 from state import *
 
-from toolkit.database.chromadb_setup import CHROMA_CLIENT
+from chromadb_setup import CHROMA_CLIENT
 
 
 class PathEmbedding:
@@ -121,7 +122,7 @@ class SequenceTree:
             documents.append(subtree.name)
             ids.append(subtree.id)
             metadatas.append({
-                "reachableSequences": [seq.id for seq in subtree.paths.values()],
+                "reachableSequences": json.dumps([seq.id for seq in subtree.paths.values()]),
                 "reaction": self.context # TODO Must change later
             })
 
