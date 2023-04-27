@@ -1,4 +1,5 @@
 """
+DEPRECATED check tree_builder.py instead
 Allows developers to build the sequence tree for the game.
 Will be a simple CLI application for now.
 TODO: Make this dynamic
