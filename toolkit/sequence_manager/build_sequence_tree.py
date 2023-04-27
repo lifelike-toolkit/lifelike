@@ -1,9 +1,5 @@
-"""
-DEPRECATED check tree_builder.py instead
-Allows developers to build the sequence tree for the game.
-Will be a simple CLI application for now.
-TODO: Make this dynamic
-"""
+from tree_builder import SequenceTreeBuilder
+
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, pipeline
 from sequence_tree import *
 
@@ -30,45 +26,47 @@ def embed_responses(responses: list) -> list:
         assert len(embeddings) == len(results) # Batch size must be the same
         return embeddings
 
-print("Define embedding classes and tuning")
+tree_builder = SequenceTreeBuilder("Demo", embed_responses, 28)
 
-embedding_classes = {}
-embedding_class_name = input("Give a name to this embedding class (q to skip): ")
+# Step 1
+print("Define embedding templates and tuning")
 
-while embedding_class_name != "q":
-    embedding_class = PathEmbedding(embedding_class_name, embed_responses, 28)
+embedding_template_name = input("Give a name to this embedding template (q to skip): ")
+
+while embedding_template_name != "q":
+    embedding_template = PathEmbedding(embedding_template_name, embed_responses, 28)
     message_list = []
     # Get messages
-    message = input("Give a sample response for this embedding class (q to skip): ")
+    message = input("Give a sample response for this embedding template (q to skip): ")
     while message != "q":
         message_list.append(message)
-        message = input("Give another sample response for this embedding class (q to skip): ")
-    embedding_class.add_response(message_list)
-    
-    embedding_classes[embedding_class_name] = embedding_class
-    embedding_class_name = input("Give a name for a new embedding class (q to skip): ")
+        message = input("Give another sample response for this embedding template (q to skip): ")
 
+    tree_builder.add_embedding_template(embedding_template_name, message_list)
+
+    embedding_template_name = input("Give a name for a new embedding template (q to skip): ")
+
+# Step 2
 print("Define sequences")
 
-sequence_tree_dict = {}
-sequence_id = input("Give the id for this sequence (use sequence0, sequence1... format) (q to skip): ")
-while sequence_id != "q":
+event_id = input("Give the id for this sequence (use sequence0, sequence1... format) (q to skip): ")
+while event_id != "q":
     name = input("Name of sequence: ")
     reaction = input("NPCs' response to this path: ")
-    sequence_tree = SequenceTree(sequence_id, name, reaction)
-    sequence_tree_dict[sequence_id] = sequence_tree
-    sequence_id = input("Give the id for another sequence (stay consistent, do not use - in it) (q to skip): ")
+    
+    tree_builder.add_event(event_id, name, reaction)
+
+    event_id = input("Give the id for another sequence (stay consistent, do not use - in it) (q to skip): ")
 
 print("Add connections")
-sequence_connection = input("Give a sequence connection between 2 sequence nodes as id1-id2 (connection is 1 way, id1 to id2) (q to skip): ")
+path_string = input("Give a sequence connection between 2 sequence nodes as id1-id2 (connection is 1 way, id1 to id2) (q to skip): ")
 
-while sequence_connection != 'q':
-    embedding_name=input("Choose an available embedding between (watch for typo) {}: ".format(embedding_classes.keys()))
-    embedding_class = embedding_classes[embedding_name]
-    left, right = sequence_connection.split('-')
-    sequence_left, sequence_right = sequence_tree_dict[left], sequence_tree_dict[right]
-    sequence_left.add_path(sequence_right, embedding_class)
-    sequence_connection = input("Give another sequence connection between 2 sequence nodes as id1-id2 (connection is 1 way, id1 to id2) (q to skip): ")
+while path_string != 'q':
+    embedding_template=input("Choose an available embedding between (watch for typo) {}: ".format(tree_builder.get_template_options()))
+    left, right = path_string.split('-')
+    tree_builder.add_path(left, right, path_string, embedding_template) # Defaults name to the path_string to ensure uniqueness
+    path_string = input("Give another sequence connection between 2 sequence nodes as id1-id2 (connection is 1 way, id1 to id2) (q to skip): ")
 
 # Assuming that sequence0 is the root sequence 
-sequence_tree_dict["sequence0"].write_db("test")
+tree_builder.to_json('./test.json')
+tree_builder.write_db()

@@ -104,9 +104,9 @@ class PathEmbedding:
 
 class SequenceEvent:
     """Wrapper for an event document in Database. The game can only see 1 at a time."""
-    def __init__(self, id: str, name: str, reaction: str, requirements: dict = None, reachable: list = None) -> None:
+    def __init__(self, id: str, name: str, reaction: str, requirements: dict = {}, reachable: list = []) -> None:
         """
-        Constructor. To build the event from dict, use .build()
+        Constructor. To build the event from dict, use .from_dict()
         Params:
             - id: self-explanatory
             - name: also self-explanatory
@@ -118,7 +118,7 @@ class SequenceEvent:
         self.name = name
         self.context = reaction # Future proofing
         self.requirements = requirements # TODO: Allow for more customization here
-        self.reachable = []
+        self.reachable = reachable
         # TODO: Process formatted reaction string to allow for a segmented event (Allow player to click on an action button or have another character takeover mid conversation)
 
     def to_dict(self) -> dict:
@@ -132,7 +132,7 @@ class SequenceEvent:
         }
 
     @staticmethod
-    def build(event_dict: dict) -> 'SequenceEvent':
+    def from_dict(event_dict: dict) -> 'SequenceEvent':
         """Rebuild tree using a dictionary to resume progress (expects json deserialization higher up in the process)"""
         return SequenceEvent(event_dict["id"], event_dict["name"], event_dict["context"], event_dict["requirement"], event_dict["reachable"])
 

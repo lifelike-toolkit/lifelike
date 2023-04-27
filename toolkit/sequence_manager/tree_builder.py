@@ -14,7 +14,7 @@ class SequenceTreeBuilder:
         """
         Constructor.
         Params:
-            - name: Name of the story
+            - name: Name of the story (Must be chromadb friendly)
             - embedding_function
         """
         self.name = name
@@ -119,9 +119,27 @@ class SequenceTreeBuilder:
         return self.embedding_template_dict.keys()
 
     @staticmethod
-    def build_from_json(path_to_json: str, embedding_function: Callable[[list], list]) -> 'SequenceTreeBuilder':
+    def build_from_json(path_to_json: str, embedding_function: Callable[[list], list], dims) -> 'SequenceTreeBuilder':
         """Rebuild tree from JSON file. TODO: Finish this"""
-        pass
+        tree_dict = {}
+        with open(path_to_json, "r") as f:
+            tree_dict = json.load(f)
+
+        builder = SequenceTreeBuilder(tree_dict["name"], embedding_function, tree_dict["dims"])
+        for (template_name, template_dict) in tree_dict["embedding_template_dict"].items():
+            builder.embedding_template_dict[template_name] = PathEmbedding.from_dict(template_dict, embedding_function)
+
+        for (event_id, event_dict) in tree_dict["event_dict"].items():
+            builder.event_dict[event_id] = SequenceEvent.from_dict(event_dict)
+
+        for (path_string, embedding_dict) in tree_dict["path_dict"].items():
+            # TODO I fucked up here, json shows "('event0', 'event1')", duct-tape solution
+            path_string = path_string[1:-1] # Remove the '(' and the ')'
+            path_string = path_string.replace("'", "") # Remove the single quote
+            path = tuple(path_string.split(", ")) # Split by ", "
+            builder.path_dict[path] = PathEmbedding.from_dict(embedding_dict, embedding_function)
+        
+        return builder
 
     def to_dict(self) -> dict:
         """Return the instance in dictionary form to be saved to json"""
@@ -138,22 +156,25 @@ class SequenceTreeBuilder:
         with open(path_to_json, "w") as f:
             json.dump(self.to_dict(), f, indent=4)
 
-    def write_db(self, collection_name: str):
-        """Write current tree to a ChromaDB collection. Old code from sequence_tree TODO: Does not work, need to fix"""
-        collection = CHROMA_CLIENT.get_collection(name=collection_name)
+    def write_db(self):
+        """Write current tree to a ChromaDB collection"""
+        collection = CHROMA_CLIENT.get_collection(name=self.name)
         # Only need to add the following nodes to chroma, as the starting state does not need to be defined
         embeddings = []
         documents = []
         metadatas=[]
         ids=[]
 
-        for (embedding_tuple, subtree) in self.paths.items():
-            embeddings.append(list(embedding_tuple))
-            documents.append(subtree.name)
-            ids.append(subtree.id)
+        for (path, embedding) in self.path_dict.items():
+            target_event_name = path[1]
+            target_event = self.event_dict[target_event_name]
+
+            embeddings.append(embedding.get_embedding())
+            documents.append(target_event.name)
+            ids.append(target_event_name)
             metadatas.append({
-                "reachableSequences": json.dumps([seq.id for seq in subtree.paths.values()]),
-                "reaction": self.context # TODO Must change later
+                "reachableSequences": json.dumps(target_event.reachable),
+                "reaction": target_event.context # TODO Must change later
             })
 
         collection.add(ids=ids, embeddings=embeddings, metadatas=metadatas, documents=documents)
@@ -186,46 +207,6 @@ if __name__ == "__main__":
             assert len(embeddings) == len(results) # Batch size must be the same
             return embeddings
 
-    tree_builder = SequenceTreeBuilder("Demo", embed_responses, 28)
-
-    # Step 1
-    print("Define embedding templates and tuning")
-
-    embedding_template_name = input("Give a name to this embedding template (q to skip): ")
-
-    while embedding_template_name != "q":
-        embedding_template = PathEmbedding(embedding_template_name, embed_responses, 28)
-        message_list = []
-        # Get messages
-        message = input("Give a sample response for this embedding template (q to skip): ")
-        while message != "q":
-            message_list.append(message)
-            message = input("Give another sample response for this embedding template (q to skip): ")
-
-        tree_builder.add_embedding_template(embedding_template_name, message_list)
-
-        embedding_template_name = input("Give a name for a new embedding template (q to skip): ")
-
-    # Step 2
-    print("Define sequences")
-
-    event_id = input("Give the id for this sequence (use sequence0, sequence1... format) (q to skip): ")
-    while event_id != "q":
-        name = input("Name of sequence: ")
-        reaction = input("NPCs' response to this path: ")
-        
-        tree_builder.add_event(event_id, name, reaction)
-
-        event_id = input("Give the id for another sequence (stay consistent, do not use - in it) (q to skip): ")
-
-    print("Add connections")
-    path_string = input("Give a sequence connection between 2 sequence nodes as id1-id2 (connection is 1 way, id1 to id2) (q to skip): ")
-
-    while path_string != 'q':
-        embedding_template=input("Choose an available embedding between (watch for typo) {}: ".format(tree_builder.get_template_options()))
-        left, right = path_string.split('-')
-        tree_builder.add_path(left, right, path_string, embedding_template) # Defaults name to the path_string to ensure uniqueness
-        path_string = input("Give another sequence connection between 2 sequence nodes as id1-id2 (connection is 1 way, id1 to id2) (q to skip): ")
-
-    # Assuming that sequence0 is the root sequence 
-    tree_builder.to_json('./test.json')
+    tree_builder = SequenceTreeBuilder.build_from_json("./cod.json", embed_responses, 28)
+    tree_builder.to_json('./test_cod.json')
+    tree_builder.write_db()
