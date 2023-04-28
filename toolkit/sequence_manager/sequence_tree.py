@@ -8,13 +8,13 @@ from typing import Callable
 
 class PathEmbedding:
     """Path embedding dictionary that stores, calculate and allows for retrieval of different preset embeddings"""
-    def __init__(self, name: str, embedding_function: Callable[[list], list], dims: int, current_embedding: list=None, current_weight: int=0) -> None:
+    def __init__(self, name: str, dims: int, embedding_function: Callable[[list], list]=None, current_embedding: list=None, current_weight: int=0) -> None:
         """
         Constructor. If loading from dict, use from_dict() instead. 
         Params:
             - name: identifier
-            - embedding_function: the function that takes a batch of responses and returns the corresponding batch of embeddings
             - dims: number of dimensionse. e.g. 28 emotions -> 28-d embedding TODO: is this necessary? currently here for consistency
+            - embedding_function: the function that takes a batch of responses and returns the corresponding batch of embeddings. If not provided, the embedding is marked as Final (no tuning allowed).
             - current_embedding: the current embedding loaded from json, or pre-determined to bypass tuning. Defaulted to None.
             - current_weight: the current weight loaded from json (use 1 to bypass tuning). If current_weight is 0, the current_embedding will be ignored. Defaulted to 0.
         """
@@ -22,14 +22,18 @@ class PathEmbedding:
             raise Exception("Path embedding name cannot be None")
 
         self.name = name
+        self.final = False # Whether tuning is disabled on this embedding
 
-        # Validating embedding function
-        test_embeddings = embedding_function(["test string"]) # This must not throw an error
-        test_dims = len(test_embeddings[0])
-        if test_dims != dims:
-            raise Exception("Embedding function is not valid. Returns embedding with {} dims instead of the defined {} dims".format(test_dims, dims))
+        if (embedding_function is not None):
+            # Validating embedding function
+            test_embeddings = embedding_function(["test string"]) # This must not throw an error
+            test_dims = len(test_embeddings[0])
+            if test_dims != dims:
+                raise Exception("Embedding function is not valid. Returns embedding with {} dims instead of the defined {} dims".format(test_dims, dims))
 
-        self.embed = embedding_function
+            self.embed = embedding_function
+        else:
+            self.final = True
 
         if not current_embedding:
             self.embedding = [0]*dims
@@ -43,12 +47,12 @@ class PathEmbedding:
         self.n_dims = dims
 
     @staticmethod
-    def from_dict(embedding_dict: dict, embedding_function: Callable[[list], list]) -> 'PathEmbedding':
+    def from_dict(embedding_dict: dict, embedding_function: Callable[[list], list]=None) -> 'PathEmbedding':
         """
         Generate up a Path Embedding instance. DO NOT USE TO MAKE DEEP COPY, use copy() instead
         Params:
             - embedding_dict: the result of PathEmbedding.to_dict() instance method, or a dict with the same format
-            - embedding_function: the function that takes a batch of responses and returns the corresponding batch of embeddings
+            - embedding_function: the function that takes a batch of responses and returns the corresponding batch of embeddings. Set to None if no tuning is required
         """
         name = embedding_dict["name"]
         embedding = embedding_dict["embedding"]
@@ -71,6 +75,10 @@ class PathEmbedding:
 
         Returns: The new embedding
         """
+        if self.final:
+            print("The Embedding is marked as Final. Cannot be tuned.")
+            return None
+
         new_embeddings = self.embed(prompts)
 
         # Update weighted average

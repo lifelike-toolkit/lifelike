@@ -1,7 +1,6 @@
 import json
 from typing import Callable
 
-from chromadb_setup import CHROMA_CLIENT
 from sequence_tree import *
 
 class SequenceTreeBuilder:
@@ -10,22 +9,27 @@ class SequenceTreeBuilder:
     Provides methods that supports building out a sequence tree and acts as an interface for Database.
     Only Constructor can exit to support retries.
     """
-    def __init__(self, name: str, embedding_function: Callable[[list], list], dims: int) -> None:
+    def __init__(self, name: str, dims: int, embedding_function: Callable[[list], list]=None) -> None:
         """
         Constructor.
         Params:
             - name: Name of the story (Must be chromadb friendly)
-            - embedding_function
+            - embedding_function: Takes input and returns embedding. If not provided, the Tree is marked as Final (cannot be changed)
         """
         self.name = name
+        self.final = False
 
-        # Validating embedding function
-        test_embeddings = embedding_function(["test string"]) # This must not throw an error
-        test_dims = len(test_embeddings[0])
-        if test_dims != dims:
-            raise Exception("Embedding function is not valid. Returns embedding with {} dims instead of the defined {} dims".format(test_dims, dims))
+        if embedding_function is not None:
+            # Validating embedding function
+            test_embeddings = embedding_function(["test string"]) # This must not throw an error
+            test_dims = len(test_embeddings[0])
+            if test_dims != dims:
+                raise Exception("Embedding function is not valid. Returns embedding with {} dims instead of the defined {} dims".format(test_dims, dims))
 
-        self.embed = embedding_function
+            self.embed = embedding_function
+        else:
+            self.final = True
+
         self.dims = dims
 
         # Currently, if there are 2 ways to reach an event, a copy with a new unique id must be made
@@ -48,6 +52,10 @@ class SequenceTreeBuilder:
             - reaction: the text prompts given as response to player speech. WIP. TODO: May want to be its own Context class
             - requirements: a dictionary containing extra requirement, with key-value pair being the dev-defined id of a quantity and its value
         """
+        if self.final:
+            print("Sequence Tree was marked as Final. No change can be made to it")
+            return False
+
         if event_id in self.event_dict:
             print("Sequence Event id {} already exists. If there is a second way to reach this event, create a copy with a unique id and retry")
             return False
@@ -62,6 +70,10 @@ class SequenceTreeBuilder:
             - name: the name for the template
             - prompts: the initial prompts to tune the template. If None, consider using the "default" template instead.
         """
+        if self.final:
+            print("Sequence Tree was marked as Final. No change can be made to it")
+            return False
+
         if name in self.embedding_template_dict:
             print("Embedding template {} already exists. Use a new unique name")
             return False
@@ -80,7 +92,10 @@ class SequenceTreeBuilder:
             - embedding_name: Rename the embedding class. Ensure it is unique to avoid unexpected behaviours.
             - embedding_template: Name of embedding template to use. Must exists in embedding_template_dict.
         """
-        if start_id not in self.event_dict or end_id not in self.event_dict:
+        if self.final:
+            print("Sequence Tree was marked as Final. No change can be made to it")
+            return False
+        elif start_id not in self.event_dict or end_id not in self.event_dict:
             print("Either start_id or end_id does not exist in event_dict. Must be 2 of {}.".format(self.event_dict.keys()))
             return False
         elif start_id == end_id:
@@ -108,6 +123,10 @@ class SequenceTreeBuilder:
             - path_id: Identifier for path, is a tuple of form (start_event, end_event)
             - prompts: List of prompts for tuning
         """
+        if self.final:
+            print("Sequence Tree was marked as Final. No change can be made to it")
+            return False
+
         if path_id not in self.path_dict:
             print("Path {} does not exists".format(path_id))
             return False
@@ -119,8 +138,13 @@ class SequenceTreeBuilder:
         return self.embedding_template_dict.keys()
 
     @staticmethod
-    def build_from_json(path_to_json: str, embedding_function: Callable[[list], list], dims) -> 'SequenceTreeBuilder':
-        """Rebuild tree from JSON file. TODO: Finish this"""
+    def build_from_json(path_to_json: str, embedding_function: Callable[[list], list]=None) -> 'SequenceTreeBuilder':
+        """
+        Rebuild tree from JSON file.
+        Params:
+            - path_to_json: The string that signifies the path to the jsonified tree
+            - embedding_function: Takes input and returns embedding. If not provided, the Tree is marked as Final (cannot be changed)
+        """
         tree_dict = {}
         with open(path_to_json, "r") as f:
             tree_dict = json.load(f)
@@ -156,9 +180,9 @@ class SequenceTreeBuilder:
         with open(path_to_json, "w") as f:
             json.dump(self.to_dict(), f, indent=4)
 
-    def write_db(self):
+    def write_db(self, chroma_client):
         """Write current tree to a ChromaDB collection"""
-        collection = CHROMA_CLIENT.get_collection(name=self.name)
+        collection = chroma_client.get_collection(name=self.name)
         # Only need to add the following nodes to chroma, as the starting state does not need to be defined
         embeddings = []
         documents = []
