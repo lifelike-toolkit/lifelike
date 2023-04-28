@@ -58,7 +58,7 @@ class PathEmbedding:
         embedding = embedding_dict["embedding"]
         dims = len(embedding)
         weight = embedding_dict["weight"]
-        return PathEmbedding(name, embedding_function, dims, embedding, weight)
+        return PathEmbedding(name, dims, embedding_function, embedding, weight)
 
     def get_embedding(self) -> list:
         """
