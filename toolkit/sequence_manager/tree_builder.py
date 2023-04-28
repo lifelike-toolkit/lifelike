@@ -36,7 +36,7 @@ class SequenceTreeBuilder:
         self.event_dict = {} # id - SequenceEvent. Mostly for lookup
 
         # Stores PathEmbedding templates, must be generated first, tuned later
-        default_embedding = PathEmbedding("default", embedding_function, dims) # All 0, must be tuned
+        default_embedding = PathEmbedding("default", dims, embedding_function) # All 0, must be tuned
         self.embedding_template_dict = {"default": default_embedding} # Must be copied using .copy() to be used or risk unexpected behaviour
 
         # Provides path look up. Format: {(SequenceEvent left, SequenceEvent right): PathEmbedding embedding}
@@ -78,7 +78,7 @@ class SequenceTreeBuilder:
             print("Embedding template {} already exists. Use a new unique name")
             return False
         else:
-            embedding_instance = PathEmbedding(name, self.embed, self.dims)
+            embedding_instance = PathEmbedding(name, self.dims, self.embed)
             embedding_instance.tune_prompts(prompts)
             self.embedding_template_dict[name] = embedding_instance
             return True
