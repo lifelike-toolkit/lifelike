@@ -1,7 +1,7 @@
 import json
 from typing import Callable
 
-from sequence_tree import *
+from .sequence_tree import *
 
 class SequenceTreeBuilder:
     """
