@@ -26,7 +26,7 @@ def embed_responses(responses: list) -> list:
         assert len(embeddings) == len(results) # Batch size must be the same
         return embeddings
 
-tree_builder = SequenceTreeBuilder("Demo", embed_responses, 28)
+tree_builder = SequenceTreeBuilder("Demo", 28, embed_responses)
 
 # Step 1
 print("Define embedding templates and tuning")

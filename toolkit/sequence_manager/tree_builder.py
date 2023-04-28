@@ -1,7 +1,7 @@
 import json
 from typing import Callable
 
-from .sequence_tree import *
+from sequence_tree import *
 
 class SequenceTreeBuilder:
     """
@@ -149,7 +149,7 @@ class SequenceTreeBuilder:
         with open(path_to_json, "r") as f:
             tree_dict = json.load(f)
 
-        builder = SequenceTreeBuilder(tree_dict["name"], embedding_function, tree_dict["dims"])
+        builder = SequenceTreeBuilder(tree_dict["name"], tree_dict["dims"], embedding_function)
         for (template_name, template_dict) in tree_dict["embedding_template_dict"].items():
             builder.embedding_template_dict[template_name] = PathEmbedding.from_dict(template_dict, embedding_function)
 
