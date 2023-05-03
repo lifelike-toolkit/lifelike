@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages
+from setuptools import setup
 
 setup(
     name='lifelike',
@@ -6,7 +6,8 @@ setup(
     description='A A toolkit that allows for the creation of "lifelike" characters that you can interact with and change how they behave towards you',
     author='Mustafa Tariq and Khoa Nguyen',
     liscense='MIT',
-    packages=find_packages(),
+    packages=['lifelike'],
+    package_dir={'': 'src'},
         install_requires=[
         'requests',
         'openai',
