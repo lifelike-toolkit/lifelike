@@ -18,6 +18,7 @@ setup(
         'onnxruntime',
         'datasets',
         'chromadb',
-        'flask-cors'
+        'flask-cors',
+        'langchain'
     ]
 )
