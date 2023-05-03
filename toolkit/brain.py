@@ -4,13 +4,10 @@ This file contains the interface to manage characters and conversations
 import json
 import os
 import random
+from typing import List, Dict, Set
 from langchain import PromptTemplate, LLMChain
 
 
-def init(llm) -> None:
-    global LLM
-    LLM = llm
-    
 class Characters:
     """
     This class is an interface to manage characters.
@@ -18,33 +15,33 @@ class Characters:
     def __init__(self, path: str) -> None:
         """
         @param path: path to the json file
+        @return: None, initializes Characters
         """
         self.path = path
+        self.characters = {}
         if os.path.exists(path):
             self.characters = json.load(open(path, 'r', encoding='utf-8'))
-        else:
-            self.characters = {}
-    
+
     def is_out(self, name: str) -> ValueError:
         """
         @param name: unique name of the character
-        Check if character exists
+        @return: ValueError if character does not exist
         """
         if name not in self.characters:
             raise ValueError(f"Character {name} does not exist.")
-        
+
     def is_in(self, name: str) -> ValueError:
         """
         @param name: unique name of the character
-        Check if character does not exist
+        @return: ValueError if character exists
         """
         if name in self.characters:
             raise ValueError(f"Character {name} already exists.")
 
-    def get(self, name: str) -> dict[str, str]:
+    def get(self, name: str) -> str:
         """
         @param name: unique name of the character
-        Get a characters background from name
+        @return: background of the character
         """
         self.is_out(name)
         return self.characters[name]
@@ -53,7 +50,7 @@ class Characters:
         """
         @param name: unique name of the character
         @param background: background of the character
-        Add new character to the list
+        @return: None, adds character to Characters
         """
         self.is_in(name)
         self.characters[name] = background
@@ -62,7 +59,7 @@ class Characters:
         """
         @param new_name: name of the character
         @param background: new background of the character
-        Revise character
+        @return: None, updates character in Characters
         """
         self.is_out(name)
         self.characters[name] = background
@@ -70,90 +67,92 @@ class Characters:
     def delete(self, name) -> None:
         """
         @param name: unique name of the character
-        Delete character
+        @return: None, deletes character from Characters
         """
         self.is_out(name)
         self.characters.pop(name)
 
     def __str__(self) -> str:
         """
-        Return string representation of the characters
+        @return: string representation of Characters
         """
         return str(self.characters)
 
     def save(self) -> None:
         """
-        Save characters to json
+        @return: None, saves Characters to json file
         """
-        with open(self.path, 'w', encoding='utf-8') as _:
-            json.dump(self.characters, _)
+        json.dump(self.characters, open(self.path, 'w', encoding='utf-8'))
 
 
 class Conversations:
     """
     This class is an interface to manage conversations
     """
-    def __init__(self, path: str, characters: Characters) -> None:
+    def __init__(self, path: str, characters: Characters, llm) -> None:
         """
         @param path: path to the json file
+        @param characters: Characters object
+        @param llm: langchain llm object
+        @return: None, initializes Conversations
         """
         self.path = path
         self.valid = characters
+        self.llm = llm
+        self.conversations = {}
         if os.path.exists(path):
             self.conversations = json.load(open(path, 'r', encoding='utf-8'))
-        else:
-            self.conversations = {}
 
     def context_out(self, context: str) -> ValueError:
         """
         @param context: unique context of the conversation
-        Check if context exists
+        @return: ValueError if context does not exist
         """
         if context not in self.conversations:
             raise ValueError(f"Conversation {context} does not exist.")
-    
+
     def context_in(self, context: str) -> ValueError:
         """
         @param context: unique context of the conversation
-        Check if context does not exist
+        @return: ValueError if context exists
         """
         if context in self.conversations:
             raise ValueError(f"Conversation {context} already exists.")
-    
-    def valid_participants(self, participants: list[str]) -> ValueError:
+
+    def valid_participants(self, participants: Set[str]) -> ValueError:
         """
         @param context: unique context of the conversation
         @param participants: list of character names
-        Check if participants are invalid
+        @return: ValueError if participants are invalid
         """
-        for participant in participants:
-            if participant not in self.valid.characters:
-                raise ValueError(f"Character {participant} does not exist.")
+        invalid = participants - set(self.valid.characters)
+        if invalid:
+            raise ValueError(f"The participants in {invalid} do not exist.")
 
-    def get(self, context: str) -> dict[str, list]:
+    def get(self, context: str) -> Dict[str, any]:
         """
         @param context: unique context of the conversation
-        Get participants and log of the conversation
+        @return: participants and log of the conversation
         """
         self.context_out(context)
         return self.conversations[context]
 
-    def new(self, context: str, participants: list[str]) -> None:
+    def new(self, context: str, participants: Set[str]) -> None:
         """
         @param context: unique context of the conversation
         @param participants: list of character names
-        Create a new conversation
+        @return: None, creates new conversation
         """
         self.valid_participants(participants)
         self.context_in(context)
         self.conversations[context] = {"participants": participants, "log": []}
 
-    def update(self, context: str, participants: list[str], log: list[(str, str)]) -> None:
+    def update(self, context: str, participants: Set[str], log: List[List[str]]) -> None:
         """
         @param context: unique context of the conversation
         @param participants: list of character names
-        @param log: list of (speaker, utterance)
-        Revise conversation
+        @param log: list of [speaker, utterance]
+        @return: None, updates conversation
         """
         self.valid_participants(participants)
         self.context_out(context)
@@ -162,7 +161,7 @@ class Conversations:
     def delete(self, context: str) -> None:
         """
         @param context: unique context of the conversation
-        Delete conversation
+        @return: None, deletes conversation
         """
         self.context_out(context)
         self.conversations.pop(context)
@@ -172,44 +171,74 @@ class Conversations:
         @param context: unique context of the conversation
         @param speaker: name of the speaker
         @param utterance: utterance of the speaker
-        Append a new utterance to the conversation
+        @return: None, appends utterance to the conversation
         """
-        self.valid_participants([speaker])
+        self.valid_participants({speaker})
         self.context_out(context)
         self.conversations[context]["log"].append([speaker, utterance])
 
-    def generate(self, context: str, muted: list[str]) -> str:
+    def generate(self, context: str, muted: Set[str]) -> List[str]:
         """
         @param context: unique context of the conversation
         @param muted: list of muted characters
-        Generate a new utterance
+        @return: speaker and generated utterance
         """
-        # TODO: find a smarter way to choose next character
-        # TODO: Find a smarter way to get a single response.
-        # TODO: memory for conversation log overflow
-        # TODO: memory for the context
-        # TODO: memory for the character background
+        #TODO: find a smarter way to choose next character
+        #TODO: Find a smarter way to get a single response.
+        #TODO: memory for conversation log overflow
+        #TODO: memory for the context
+        #TODO: memory for the character background
         self.valid_participants(muted)
-        speaker = random.choice([participant for participant in self.conversations[context]["participants"] if participant not in muted])
-        log_str = '\n'.join([f"{speaker}: {utterance}" for speaker, utterance in self.conversations[context]["log"]])
 
-        template = "Current conversation:\n\n" + "{log}" + "\n" + speaker + ":"
-        prompt = PromptTemplate(template=template, input_variables=["log"])
-        chain = LLMChain(prompt=prompt, llm=LLM)
-        output = chain.run(log_str).split('\n')[0].lstrip()
-        
-        self.append(context, speaker, output)
-        return output
+        convo = self.get(context)
+
+        convo_speakers = convo["participants"]
+        unmuted = convo_speakers.difference(muted)
+        next_speaker = random.sample(unmuted, 1)[0]
+        bg = self.valid.get(next_speaker)
+
+        convo_log = convo["log"]
+        log_str = '\n'.join([f"{speaker}: {utterance}" for speaker, utterance in convo_log])
+        # get last 3 lines of log
+        try:
+            log_str = '\n'.join(log_str.split('\n')[-3:])
+        except IndexError:
+            pass
+
+        template = "Context:\n"\
+        "{context}\n"\
+        "\n"\
+        "Background:\n"\
+        "{background}\n"\
+        "\n"\
+        "Relevant pieces of information:\n"\
+        "{history}\n"\
+        "\n"\
+        "(You do not need to use these pieces of information if not relevant)\n"\
+        "\n"\
+        "Conversation:\n"\
+        "{log}\n"\
+        "{speaker}:"
+
+        prompt = PromptTemplate(template=template,
+                                input_variables=["context", "background",
+                                "history", "log", "speaker"])
+        chain = LLMChain(prompt=prompt, llm=self.llm)
+
+        output = chain.run({"context": context, "background": bg, "history": "", "log": log_str, "speaker": next_speaker})
+        if output != "":
+            output = output.split('\n')[0].lstrip()
+        self.append(context, next_speaker, output)
+        return [next_speaker, output]
 
     def __str__(self) -> str:
         """
-        Return string representation of the conversations
+        @return: string representation of Conversations
         """
         return str(self.conversations)
 
     def save(self) -> None:
         """
-        Save the file to json
+        @return: None, saves Conversations to json file
         """
-        with open(self.path, 'w', encoding='utf-8') as _:
-            json.dump(self.conversations, _)
+        json.dump(self.conversations, open(self.path, 'w', encoding='utf-8'))
