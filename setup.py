@@ -5,7 +5,7 @@ setup(
     version='1.0.6',
     description='A A toolkit that allows for the creation of "lifelike" characters that you can interact with and change how they behave towards you',
     author='Mustafa Tariq and Khoa Nguyen',
-    liscense='MIT',
+    license='MIT',
     packages=['lifelike'],
     package_dir={'': 'src'},
         install_requires=[
