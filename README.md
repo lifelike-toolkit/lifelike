@@ -3,11 +3,13 @@ A toolkit that allows for the creation of "lifelike" characters that you can int
 
 
 ## Brain Useage
-Until we get a `pip install lifelike` thing going for now just drag the `brain.py` file into your workspace to get started.
+Install the package: `pip install git+https://github.com/lifelike-toolkit/lifelike.git`
+
+Then import it with `from lifelike import brain`
 
 The `Characters` class requires a file path to a JSON file where the characters data will be saved. To create a `Characters` object, initialize it as follows:
 ```python
-import brain
+from lifelike import brain
 characters = brain.Characters("/path/to/your/characters.json")
 ```
 Once the object is initialized, the following methods can be used:
