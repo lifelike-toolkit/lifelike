@@ -8,17 +8,6 @@ setup(
     license='MIT',
     packages=find_packages(),
         install_requires=[
-        'requests',
-        'openai',
-        'streamlit',
-        'flask',
-        'torch',
-        'transformers',
-        'onnx',
-        'onnxruntime',
-        'datasets',
-        'chromadb',
-        'flask-cors',
         'langchain'
     ]
 )
