@@ -1,4 +1,4 @@
-from tree_builder import SequenceTreeBuilder
+from sequence_tree import SequenceTree
 
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, pipeline
 from sequence_tree import *
@@ -26,7 +26,7 @@ def embed_responses(responses: list) -> list:
         assert len(embeddings) == len(results) # Batch size must be the same
         return embeddings
 
-tree_builder = SequenceTreeBuilder("Demo", embed_responses, 28)
+tree_builder = SequenceTree("Demo", embed_responses, 28)
 
 # Step 1
 print("Define embedding templates and tuning")
