@@ -2,7 +2,7 @@
 Inherits from GameNode. Meant for linear games with branching story paths.
 Good example of simple GameTree object.
 """
-from base_game_tree import BaseGameTree, GameNode, EdgeEmbedding
+from base_game_tree import GameNodeRetriever, BaseGameTree, GameNode, EdgeEmbedding
 
 PathEmbedding = EdgeEmbedding
 
@@ -40,3 +40,14 @@ class SequenceTree(BaseGameTree):
     def add_edge(self, start_id: str, end_id: str, embedding_name: str, embedding_template: str = "default") -> bool:
         if super().add_edge(start_id, end_id, embedding_name, embedding_template):
             self.node_dict[start_id].metadata["reachable"].append(end_id)
+
+
+class SequenceEventRetriever(GameNodeRetriever):
+    def __init__(self, tree: SequenceTree, chroma_client) -> None:
+        """
+        Constructor.
+        Parameters:
+            - tree: a SequenceTree instance that retrieval will be done on
+            - chroma_client: chromadb client object
+        """
+        super().__init__(tree, chroma_client)

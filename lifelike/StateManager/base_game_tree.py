@@ -8,6 +8,7 @@ from typing import Callable
 from langchain.schema import BaseRetriever
 from langchain.embeddings.base import Embeddings # TODO: Make all embedding_function Embeddings interface
 
+
 class EdgeEmbedding:
     """Edge embedding dictionary that stores, calculate and allows for retrieval of different preset embeddings"""
     def __init__(self, name: str, dims: int, embedding_function: Callable[[list], list]=None, current_embedding: list=None, current_weight: int=0) -> None:
@@ -146,7 +147,7 @@ class BaseGameTree:
     Only Constructor can exit to support retries.
     Technically a graph, not a tree.
     """
-    def __init__(self, name: str, dims: int, embedding_function: Callable[[list], list]=None, ) -> None:
+    def __init__(self, name: str, dims: int, embedding_function: Callable[[list], list]=None) -> None:
         """
         Constructor.
         Params:
@@ -345,8 +346,16 @@ class GameNodeRetriever(BaseRetriever):
             - tree: a GameTree instance that retrieval will be done on
             - chroma_client: chromadb client object
         """
+        chroma_client.reset()
+        chroma_client.create_collection(name=tree.name, embedding_function=tree.embed)
         self._game_tree = tree
-        
+        self._game_tree.write_db(chroma_client)
+        self._collection = chroma_client.get_collection(name=tree.name)
 
-    def get_relevant_documents(self, query: str) -> list[dict]:
-        pass
+    def get_relevant_documents(self, query: str, n_results:int = 6) -> list[dict]:
+        # Query from chromadb
+        response = self._collection.query(
+            query_texts=[query],
+            n_results = n_results
+        )
+        return response
