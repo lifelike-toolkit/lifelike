@@ -352,7 +352,7 @@ class GameNodeRetriever(BaseRetriever):
         self._game_tree.write_db(chroma_client)
         self._collection = chroma_client.get_collection(name=tree.name)
 
-    def get_relevant_documents(self, query: str, n_results:int = 6) -> list[dict]:
+    def get_relevant_documents(self, query: str, n_results:int = 6) -> list[Document]:
         # Query from chromadb
         response = self._collection.query(
             query_texts=[query],
