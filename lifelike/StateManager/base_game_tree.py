@@ -6,7 +6,7 @@ import numpy
 import json
 from typing import Callable
 from langchain.schema import BaseRetriever
-from langchain.embeddings.base import Embeddings
+from langchain.embeddings.base import Embeddings # TODO: Make all embedding_function Embeddings interface
 
 class EdgeEmbedding:
     """Path embedding dictionary that stores, calculate and allows for retrieval of different preset embeddings"""
@@ -24,7 +24,7 @@ class EdgeEmbedding:
             raise Exception("Path embedding name cannot be None")
 
         self.name = name
-        self.final = False # Whether tuning is disabled on this embedding
+        self._final = False # Whether tuning is disabled on this embedding
 
         if (embedding_function is not None):
             # Validating embedding function
@@ -35,7 +35,7 @@ class EdgeEmbedding:
 
             self.embed = embedding_function
         else:
-            self.final = True
+            self._final = True
 
         if not current_embedding:
             self.embedding = [0]*dims
@@ -77,7 +77,7 @@ class EdgeEmbedding:
 
         Returns: The new embedding
         """
-        if self.final:
+        if self._final:
             print("The Embedding is marked as Final. Cannot be tuned.")
             return None
 
@@ -314,7 +314,7 @@ class BaseGameTree:
             json.dump(self.to_dict(), f, indent=4)
 
     def write_db(self, chroma_client):
-        """Write current tree to a ChromaDB collection. TODO: Make this work with any vectorstore"""
+        """Write current tree to a ChromaDB collection. TODO: Make this work with any vectorstore using langchain"""
         collection = chroma_client.get_collection(name=self.name)
         # Only need to add the following nodes to chroma, as the starting state does not need to be defined
         embeddings = []
