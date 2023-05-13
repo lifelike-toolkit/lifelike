@@ -5,7 +5,7 @@ Tunes sequence embeddings to allow the game to more accurately predict player's 
 import numpy
 import json
 from typing import Callable
-from langchain.schema import BaseRetriever
+from langchain.schema import BaseRetriever, Document
 from langchain.embeddings.base import Embeddings # TODO: Make all embedding_function Embeddings interface
 
 
