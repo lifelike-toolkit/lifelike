@@ -181,28 +181,26 @@ class BaseGameTree:
         # Where left is start event, right is end event, and embedding is the required embedding to go from left to right
         self.edge_dict = {} 
 
-    def add_node(self, event_id: str, context: str, metadata: str, requirements: dict = None) -> bool:
+    def add_node(self, node: GameNode) -> bool:
         """
-        Add a Sequence Event. Note: The params are close to SequenceEvent's, but reachable will be done in add_edge() for consistency.
-        Defaults to creating a GameNode for consistency. Must be overridden to modify this behaviour.
+        Add a GameNode to the GameTree
         Params:
-            - id: self-explanatory
-            - context: context to store in Sequence Event
-            - metadata: extra metadata to go along with context
-            - requirements: a dictionary containing extra requirement, with key-value pair being the dev-defined id of a quantity and its value
+            - node: a GameNode instance
         """
         if self._final:
             print("Game Tree was marked as Final. No change can be made to it")
             return False
 
+        event_id = node.id
+
         if event_id in self.node_dict:
             print("Sequence Event id {} already exists. If there is a second way to reach this event, create a copy with a unique id and retry")
             return False
         else:
-            self.node_dict[event_id] = GameNode(event_id, context, metadata, requirements)
+            self.node_dict[event_id] = node
             return True
 
-    def add_embedding_template(self, name: str, prompts: list) -> bool:
+    def add_embedding_template(self, edge_embedding: EdgeEmbedding) -> bool:
         """
         Add embedding template.
         Params:
@@ -213,13 +211,13 @@ class BaseGameTree:
             print("Game Tree was marked as Final. No change can be made to it")
             return False
 
+        name = edge_embedding.name
+
         if name in self.embedding_template_dict:
             print("Embedding template {} already exists. Use a new unique name")
             return False
         else:
-            embedding_instance = EdgeEmbedding(name, self.dims, self.embed)
-            embedding_instance.tune_prompts(prompts)
-            self.embedding_template_dict[name] = embedding_instance
+            self.embedding_template_dict[name] = edge_embedding
             return True
 
     def add_edge(self, start_id: str, end_id: str, embedding_name: str, embedding_template: str="default") -> bool:
