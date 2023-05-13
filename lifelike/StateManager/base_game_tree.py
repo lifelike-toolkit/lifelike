@@ -5,15 +5,17 @@ Tunes sequence embeddings to allow the game to more accurately predict player's 
 import numpy
 import json
 from typing import Callable
+from langchain.schema import BaseRetriever
+from langchain.embeddings.base import Embeddings
 
-class PathEmbedding:
+class EdgeEmbedding:
     """Path embedding dictionary that stores, calculate and allows for retrieval of different preset embeddings"""
     def __init__(self, name: str, dims: int, embedding_function: Callable[[list], list]=None, current_embedding: list=None, current_weight: int=0) -> None:
         """
         Constructor. If loading from dict, use from_dict() instead. 
         Params:
             - name: identifier
-            - dims: number of dimensionse. e.g. 28 emotions -> 28-d embedding TODO: is this necessary? currently here for consistency
+            - dims: number of dimensions. e.g. 28 emotions -> 28-d embedding TODO: is this necessary? currently here for consistency
             - embedding_function: the function that takes a batch of responses and returns the corresponding batch of embeddings. If not provided, the embedding is marked as Final (no tuning allowed).
             - current_embedding: the current embedding loaded from json, or pre-determined to bypass tuning. Defaulted to None.
             - current_weight: the current weight loaded from json (use 1 to bypass tuning). If current_weight is 0, the current_embedding will be ignored. Defaulted to 0.
@@ -47,7 +49,7 @@ class PathEmbedding:
         self.n_dims = dims
 
     @staticmethod
-    def from_dict(embedding_dict: dict, embedding_function: Callable[[list], list]=None) -> 'PathEmbedding':
+    def from_dict(embedding_dict: dict, embedding_function: Callable[[list], list]=None) -> 'EdgeEmbedding':
         """
         Generate up a Path Embedding instance. DO NOT USE TO MAKE DEEP COPY, use copy() instead
         Params:
@@ -58,7 +60,7 @@ class PathEmbedding:
         embedding = embedding_dict["embedding"]
         dims = len(embedding)
         weight = embedding_dict["weight"]
-        return PathEmbedding(name, dims, embedding_function, embedding, weight)
+        return EdgeEmbedding(name, dims, embedding_function, embedding, weight)
 
     def get_embedding(self) -> list:
         """
@@ -99,7 +101,7 @@ class PathEmbedding:
             'weight': self.weight
         }
 
-    def copy(self, new_name: str) -> 'PathEmbedding':
+    def copy(self, new_name: str) -> 'EdgeEmbedding':
         """
         Return a deep copy of this PathEmbedding instance.
         Params:
@@ -110,55 +112,43 @@ class PathEmbedding:
         return self.from_dict(embedding_dict, self.embed)
 
 
-class SequenceEvent:
-    """Wrapper for an event document in Database. The game can only see 1 at a time."""
-    def __init__(self, id: str, name: str, reaction: str, requirements: dict = {}, reachable: list = []) -> None:
+class GameNode:
+    """Wrapper for a document in Database"""
+    def __init__(self, id: str, context: str, metadata: str) -> None:
         """
         Constructor. To build the event from dict, use .from_dict()
         Params:
             - id: self-explanatory
-            - name: also self-explanatory
-            - reaction: the text prompts given as response to player speech. WIP. TODO: May want to be its own Context class
+            - context: also self-explanatory
+            - metadata: the text prompts given as response to player speech.
             - requirements: a dictionary containing extra requirement, with key-value pair being the dev-defined id of a quantity and its value
-            - reachable: list of ids for sequence event that this specific event can reach. Optional, use None to signify game end, or add in later with .add_reachable().
+            - reachable: list of ids for sequence event that this specific event can reach. This behaviour can be customized via SequenceEventRetriever
         """
         self.id = id
-        self.name = name
-        self.context = reaction # Future proofing
-        self.requirements = requirements # TODO: Allow for more customization here
-        self.reachable = reachable
-        # TODO: Process formatted reaction string to allow for a segmented event (Allow player to click on an action button or have another character takeover mid conversation)
+        self.context = context
+        self.metadata = metadata # Future proofing
 
     def to_dict(self) -> dict:
         """Saves tree to a dictionary that can be serialized with json"""
         return {
             'id': self.id,
-            'name': self.name,
             'context': self.context,
-            'requirement': self.requirements,
-            'reachable': self.reachable
+            'metadata': self.metadata
         }
 
     @staticmethod
-    def from_dict(event_dict: dict) -> 'SequenceEvent':
+    def from_dict(event_dict: dict) -> 'GameNode':
         """Rebuild tree using a dictionary to resume progress (expects json deserialization higher up in the process)"""
-        return SequenceEvent(event_dict["id"], event_dict["name"], event_dict["context"], event_dict["requirement"], event_dict["reachable"])
-
-        
-    def add_reachable(self, connecting_event: 'SequenceEvent') -> bool:
-        """Adding a reachable event. TODO: handle impossible sequences with custom requirements config"""
-        self.reachable.append(connecting_event.id)
-        return True
+        return GameNode(event_dict["id"], event_dict["context"], event_dict["metadata"])
 
 
-
-class SequenceTree:
+class BaseGameTree:
     """
-    Technically a graph. Only used during Database setup. 
-    Provides methods that supports building out a sequence tree and acts as an interface for Database.
+    Provides methods that supports building out a Game Tree and acts as an interface for Database.
     Only Constructor can exit to support retries.
+    Technically a graph, not a tree.
     """
-    def __init__(self, name: str, dims: int, embedding_function: Callable[[list], list]=None) -> None:
+    def __init__(self, name: str, dims: int, embedding_function: Callable[[list], list]=None, ) -> None:
         """
         Constructor.
         Params:
@@ -166,7 +156,8 @@ class SequenceTree:
             - embedding_function: Takes input and returns embedding. If not provided, the Tree is marked as Final (cannot be changed)
         """
         self.name = name
-        self.final = False
+        self._final = False # Final flag, determines if any change can be made to the tree
+        # if flag is False, embedding_function will be used to determine embedding using document text
 
         if embedding_function is not None:
             # Validating embedding function
@@ -177,7 +168,7 @@ class SequenceTree:
 
             self.embed = embedding_function
         else:
-            self.final = True
+            self._final = True
 
         self.dims = dims
 
@@ -185,31 +176,32 @@ class SequenceTree:
         self.event_dict = {} # id - SequenceEvent. Mostly for lookup
 
         # Stores PathEmbedding templates, must be generated first, tuned later
-        default_embedding = PathEmbedding("default", dims, embedding_function) # All 0, must be tuned
+        default_embedding = EdgeEmbedding("default", dims, embedding_function) # All 0, must be tuned
         self.embedding_template_dict = {"default": default_embedding} # Must be copied using .copy() to be used or risk unexpected behaviour
 
-        # Provides path look up. Format: {(SequenceEvent left, SequenceEvent right): PathEmbedding embedding}
+        # Provides path look up for custom path embedding. Format: {(SequenceEvent left, SequenceEvent right): PathEmbedding embedding}
         # Where left is start event, right is end event, and embedding is the required embedding to go from left to right
         self.path_dict = {} 
 
-    def add_event(self, event_id: str, name: str, reaction: str, requirements: dict = None) -> bool:
+    def add_node(self, event_id: str, context: str, metadata: str, requirements: dict = None) -> bool:
         """
         Add a Sequence Event. Note: The params are close to SequenceEvent's, but reachable will be done in add_path() for consistency.
+        Defaults to creating a GameNode for consistency. Must be overridden to modify this behaviour.
         Params:
             - id: self-explanatory
-            - name: also self-explanatory
-            - reaction: the text prompts given as response to player speech. WIP. TODO: May want to be its own Context class
+            - context: context to store in Sequence Event
+            - metadata: extra metadata to go along with context
             - requirements: a dictionary containing extra requirement, with key-value pair being the dev-defined id of a quantity and its value
         """
-        if self.final:
-            print("Sequence Tree was marked as Final. No change can be made to it")
+        if self._final:
+            print("Game Tree was marked as Final. No change can be made to it")
             return False
 
         if event_id in self.event_dict:
             print("Sequence Event id {} already exists. If there is a second way to reach this event, create a copy with a unique id and retry")
             return False
         else:
-            self.event_dict[event_id] = SequenceEvent(event_id, name, reaction, requirements)
+            self.event_dict[event_id] = GameNode(event_id, context, metadata, requirements)
             return True
 
     def add_embedding_template(self, name: str, prompts: list) -> bool:
@@ -219,36 +211,37 @@ class SequenceTree:
             - name: the name for the template
             - prompts: the initial prompts to tune the template. If None, consider using the "default" template instead.
         """
-        if self.final:
-            print("Sequence Tree was marked as Final. No change can be made to it")
+        if self._final:
+            print("Game Tree was marked as Final. No change can be made to it")
             return False
 
         if name in self.embedding_template_dict:
             print("Embedding template {} already exists. Use a new unique name")
             return False
         else:
-            embedding_instance = PathEmbedding(name, self.dims, self.embed)
+            embedding_instance = EdgeEmbedding(name, self.dims, self.embed)
             embedding_instance.tune_prompts(prompts)
             self.embedding_template_dict[name] = embedding_instance
             return True
 
     def add_path(self, start_id: str, end_id: str, embedding_name: str, embedding_template: str="default") -> bool:
         """
-        Add path to the tree and assign a premade embedding template.
+        Add path to the tree and assign a premade embedding template. 
+        Most of the time, you only have to override validate_path() to modify behaviour.
         Params:
             - start_id: The id of the start event. Must exists in event_dict.
             - end_id: The id of the end event. Must exists in event_dict.
             - embedding_name: Rename the embedding class. Ensure it is unique to avoid unexpected behaviours.
             - embedding_template: Name of embedding template to use. Must exists in embedding_template_dict.
         """
-        if self.final:
-            print("Sequence Tree was marked as Final. No change can be made to it")
-            return False
-        elif start_id not in self.event_dict or end_id not in self.event_dict:
-            print("Either start_id or end_id does not exist in event_dict. Must be 2 of {}.".format(self.event_dict.keys()))
-            return False
-        elif start_id == end_id:
-            print("Invalid path: start_id and end_id are both {}.".format(start_id))
+        if self.validate_path(start_id, end_id, embedding_name, embedding_template):
+            self.path_dict[(start_id, end_id)] = self.embedding_template_dict[embedding_template].copy(embedding_name)
+            return True
+
+    def validate_path(self, start_id: str, end_id: str, embedding_name: str, embedding_template: str="default") -> bool:
+        """Validates new path_dict entry"""
+        if self._final:
+            print("Game Tree was marked as Final. No change can be made to it")
             return False
         elif embedding_template not in self.embedding_template_dict:
             print("Invalid template: Embedding Template must be one of {}. Create one with add_embedding_template() or use the default template".format(self.embedding_template_dict.keys()))
@@ -257,13 +250,7 @@ class SequenceTree:
             print("Invalid path: Path {} already exists".format(start_id + '-' + end_id))
             return False
         else:
-            status = self.event_dict[start_id].add_reachable(self.event_dict[end_id]) # Checking for requirements
-            if status:
-                self.path_dict[(start_id, end_id)] = self.embedding_template_dict[embedding_template].copy(embedding_name)
-                return True
-            else:
-                print("Invalid path: Make sure the requirements in event {} is reachable from event {}".format(end_id, start_id))
-                return False
+            return True
 
     def tune_path_embedding(self, path_id: tuple, prompts: list) -> bool:
         """
@@ -272,8 +259,8 @@ class SequenceTree:
             - path_id: Identifier for path, is a tuple of form (start_event, end_event)
             - prompts: List of prompts for tuning
         """
-        if self.final:
-            print("Sequence Tree was marked as Final. No change can be made to it")
+        if self._final:
+            print("Game Tree was marked as Final. No change can be made to it")
             return False
 
         if path_id not in self.path_dict:
@@ -287,9 +274,9 @@ class SequenceTree:
         return self.embedding_template_dict.keys()
 
     @staticmethod
-    def build_from_json(path_to_json: str, embedding_function: Callable[[list], list]=None) -> 'SequenceTree':
+    def build_from_json(path_to_json: str, embedding_function: Callable[[list], list]=None) -> 'BaseGameTree':
         """
-        Rebuild tree from JSON file.
+        Rebuild tree from JSON file. May cause unexpected behaviour if the JSON file was built using a derived Tree.
         Params:
             - path_to_json: The string that signifies the path to the jsonified tree
             - embedding_function: Takes input and returns embedding. If not provided, the Tree is marked as Final (cannot be changed)
@@ -298,19 +285,16 @@ class SequenceTree:
         with open(path_to_json, "r") as f:
             tree_dict = json.load(f)
 
-        builder = SequenceTree(tree_dict["name"], tree_dict["dims"], embedding_function)
+        builder = BaseGameTree(tree_dict["name"], tree_dict["dims"], embedding_function)
         for (template_name, template_dict) in tree_dict["embedding_template_dict"].items():
-            builder.embedding_template_dict[template_name] = PathEmbedding.from_dict(template_dict, embedding_function)
+            builder.embedding_template_dict[template_name] = EdgeEmbedding.from_dict(template_dict, embedding_function)
 
         for (event_id, event_dict) in tree_dict["event_dict"].items():
-            builder.event_dict[event_id] = SequenceEvent.from_dict(event_dict)
+            builder.event_dict[event_id] = GameNode.from_dict(event_dict)
 
         for (path_string, embedding_dict) in tree_dict["path_dict"].items():
-            # TODO I fucked up here, json shows "('event0', 'event1')", duct-tape solution
-            path_string = path_string[1:-1] # Remove the '(' and the ')'
-            path_string = path_string.replace("'", "") # Remove the single quote
-            path = tuple(path_string.split(", ")) # Split by ", "
-            builder.path_dict[path] = PathEmbedding.from_dict(embedding_dict, embedding_function)
+            path = path_string.split(" ") # Split by " "
+            builder.path_dict[path] = EdgeEmbedding.from_dict(embedding_dict, embedding_function)
         
         return builder
 
@@ -320,7 +304,7 @@ class SequenceTree:
             "name": self.name,
             "embedding_template_dict": {template_id: template.to_dict() for (template_id, template) in self.embedding_template_dict.items()}, # Kinda optional here
             "event_dict": {event_id: event.to_dict() for (event_id, event) in self.event_dict.items()},
-            "path_dict": {str(path): embedding.to_dict() for (path, embedding) in self.path_dict.items()},
+            "path_dict": {path[0]+" "+path[1]: embedding.to_dict() for (path, embedding) in self.path_dict.items()},
             "dims": self.dims
         }
 
@@ -330,7 +314,7 @@ class SequenceTree:
             json.dump(self.to_dict(), f, indent=4)
 
     def write_db(self, chroma_client):
-        """Write current tree to a ChromaDB collection"""
+        """Write current tree to a ChromaDB collection. TODO: Make this work with any vectorstore"""
         collection = chroma_client.get_collection(name=self.name)
         # Only need to add the following nodes to chroma, as the starting state does not need to be defined
         embeddings = []
@@ -351,3 +335,22 @@ class SequenceTree:
             })
 
         collection.add(ids=ids, embeddings=embeddings, metadatas=metadatas, documents=documents)
+
+
+class GameNodeRetriever(BaseRetriever):
+    """
+    Retriever for events in the Game Tree. Requires ChromaDB as langchain vectorstore does not support custom embedding
+    Allows Brain to interact with the vectorstore via the langchain BaseRetriever interface
+    """
+    def __init__(self, tree: BaseGameTree, chroma_client) -> None:
+        """
+        Constructor.
+        Parameters:
+            - tree: a GameTree instance that retrieval will be done on
+            - chroma_client: chromadb client object
+        """
+        self._game_tree = tree
+
+
+    def get_relevant_documents(self, query: str) -> list[dict]:
+        pass
