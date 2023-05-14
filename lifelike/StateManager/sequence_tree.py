@@ -2,7 +2,7 @@
 Inherits from GameNode. Meant for linear games with branching story paths.
 Good example of simple GameTree object.
 """
-from base_game_tree import GameNodeRetriever, BaseGameTree, GameNode, EdgeEmbedding
+from lifelike.StateManager.base_game_tree import GameNodeRetriever, BaseGameTree, GameNode, EdgeEmbedding
 
 PathEmbedding = EdgeEmbedding
 
