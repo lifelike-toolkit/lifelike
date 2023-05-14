@@ -4,21 +4,19 @@ Tunes sequence embeddings to allow the game to more accurately predict player's 
 """
 import numpy
 import json
-from typing import Callable
 import uuid
 
-from langchain.schema import Document, BaseRetriever
-from langchain.vectorstores import VectorStore, Chroma
+from langchain.schema import BaseRetriever
+from langchain.vectorstores import Chroma
 from langchain.embeddings.base import Embeddings # TODO: Make all embedding_function Embeddings interface
 
 class EdgeEmbedding:
     """Edge embedding dictionary that stores, calculate and allows for retrieval of different preset embeddings"""
-    def __init__(self, name: str, dims: int, embedding_function: Callable[[list], list]=None, current_embedding: list=None, current_weight: int=0) -> None:
+    def __init__(self, name: str, embedding_function: Embeddings=None, current_embedding: list=None, current_weight: int=0) -> None:
         """
         Constructor. If loading from dict, use from_dict() instead. 
         Params:
             - name: identifier
-            - dims: number of dimensions. e.g. 28 emotions -> 28-d embedding TODO: is this necessary? currently here for consistency
             - embedding_function: the function that takes a batch of responses and returns the corresponding batch of embeddings. If not provided, the embedding is marked as Final (no tuning allowed).
             - current_embedding: the current embedding loaded from json, or pre-determined to bypass tuning. Defaulted to None.
             - current_weight: the current weight loaded from json (use 1 to bypass tuning). If current_weight is 0, the current_embedding will be ignored. Defaulted to 0.
@@ -29,30 +27,19 @@ class EdgeEmbedding:
         self.name = name
         self._final = False # Whether tuning is disabled on this embedding
 
-        if (embedding_function is not None):
-            # Validating embedding function
-            test_embeddings = embedding_function(["test string"]) # This must not throw an error
-            test_dims = len(test_embeddings[0])
-            if test_dims != dims:
-                raise Exception("Embedding function is not valid. Returns embedding with {} dims instead of the defined {} dims".format(test_dims, dims))
+        if embedding_function is None:
+            if current_embedding is None:
+                raise Exception("EdgeEmbedding {} was initialized with no embedding".format(name))
+            self._final = True # Activate Final flag
+        
+        self.embed = embedding_function
 
-            self.embed = embedding_function
-        else:
-            self._final = True
-
-        if not current_embedding:
-            self.embedding = [0]*dims
-        else:
-            if len(current_embedding) != dims: # Validates embedding
-                raise Exception("Embedding is not valid. Embedding has {} dims instead of the defined {} dims".format(test_dims, dims))
-
-            self.embedding = current_embedding
+        self.embedding = current_embedding
 
         self.weight = current_weight # The number of responses this embedding represents
-        self.n_dims = dims
 
-    @staticmethod
-    def from_dict(embedding_dict: dict, embedding_function: Callable[[list], list]=None) -> 'EdgeEmbedding':
+    @classmethod
+    def from_dict(cls:'EdgeEmbedding', embedding_dict: dict, embedding_function: Embeddings=None) -> 'EdgeEmbedding':
         """
         Generate up a edge Embedding instance. DO NOT USE TO MAKE DEEP COPY, use copy() instead
         Params:
@@ -61,9 +48,8 @@ class EdgeEmbedding:
         """
         name = embedding_dict["name"]
         embedding = embedding_dict["embedding"]
-        dims = len(embedding)
         weight = embedding_dict["weight"]
-        return EdgeEmbedding(name, dims, embedding_function, embedding, weight)
+        return cls(name, embedding_function, embedding, weight)
 
     def get_embedding(self) -> list:
         """
@@ -112,7 +98,7 @@ class EdgeEmbedding:
         """
         embedding_dict = self.to_dict()
         embedding_dict["name"] = new_name
-        return self.from_dict(embedding_dict, self.embed)
+        return EdgeEmbedding.from_dict(embedding_dict, self.embed)
 
 
 class GameNode:
@@ -149,7 +135,7 @@ class BaseGameTree:
     Only Constructor can exit to support retries.
     Technically a graph, not a tree.
     """
-    def __init__(self, name: str, dims: int, embedding_function: Callable[[list], list]=None) -> None:
+    def __init__(self, name: str, embedding_function: Embeddings=None) -> None:
         """
         Constructor.
         Params:
@@ -160,29 +146,19 @@ class BaseGameTree:
         self._final = False # Final flag, determines if any change can be made to the tree
         # if flag is False, embedding_function will be used to determine embedding using document text
 
-        if embedding_function is not None:
-            # Validating embedding function
-            test_embeddings = embedding_function(["test string"]) # This must not throw an error
-            test_dims = len(test_embeddings[0])
-            if test_dims != dims:
-                raise Exception("Embedding function is not valid. Returns embedding with {} dims instead of the defined {} dims".format(test_dims, dims))
-
-            self.embed = embedding_function
-        else:
-            self.embed = None # No embedding function
-            self._final = True
+        if embedding_function is None:
+            print('Tree {} was initialized in final mode'.format(name)) # TODO Final Mode might be excessive in constructor
+            self._final = True # Activate Final flag
+        
+        self.embed = embedding_function
 
         # TODO add persistent option and metadata preset
         self.vectorstore = Chroma(name, self.embed) # Preset to Chroma TODO make this work with all vectorstore
 
-        self.dims = dims
-
         # Currently, if there are 2 ways to reach an event, a copy with a new unique id must be made
         self.node_dict = {} # id - SequenceEvent. Mostly for lookup
 
-        # Stores edgeEmbedding templates, must be generated first, tuned later
-        default_embedding = EdgeEmbedding("default", dims, embedding_function) # All 0, must be tuned
-        self.embedding_template_dict = {"default": default_embedding} # Must be copied using .copy() to be used or risk unexpected behaviour
+        self.embedding_template_dict = {} # All Embedding template must be copied using .copy() to be used or risk unexpected behaviour
 
         # Provides edge look up for custom edge embedding. Format: {(SequenceEvent left, SequenceEvent right): edgeEmbedding embedding}
         # Where left is start event, right is end event, and embedding is the required embedding to go from left to right
@@ -202,7 +178,7 @@ class BaseGameTree:
         # Text to tree. Does not allow for custom edges
         for i in range(len(texts)):
             node = GameNode(ids[i], texts[i], metadatas[i])
-            edge = EdgeEmbedding(ids[i], self.dims, self.embed, embeddings[i], 20) # Tunable embedding with default weight of 20
+            edge = EdgeEmbedding(ids[i], self.embed, embeddings[i], 20) # Tunable embedding with default weight of 20
             self.add_node(node)
             self.add_edge('_', node.id, ids[i], edge)
 
@@ -255,7 +231,7 @@ class BaseGameTree:
             - start_id: The id of the start event. Must exists in event_dict.
             - end_id: The id of the end event. Must exists in event_dict.
             - embedding_name: Rename the embedding class. Ensure it is unique to avoid unexpected behaviours.
-            - embedding_template: The EdgeEmbedding object to use as a template. For saved templates, use 
+            - embedding_template: The EdgeEmbedding object to use as a template. For saved templates, use get_template().
         """
         if self.validate_edge(start_id, end_id, embedding_template.name):
             # Assigns to edge_dict
@@ -307,10 +283,10 @@ class BaseGameTree:
 
         return self.embedding_template_dict[name]
 
-    @staticmethod
-    def build_from_json(edge_to_json: str, embedding_function: Callable[[list], list]=None) -> 'BaseGameTree':
+    @classmethod
+    def build_from_json(cls:'BaseGameTree', edge_to_json: str, embedding_function: Embeddings=None) -> 'BaseGameTree':
         """
-        Rebuild tree from JSON file. May cause unexpected behaviour if the JSON file was built using a derived Tree.
+        Rebuild tree from JSON file. May cause unexpected behaviour if the JSON file was built using derived GameNode and EdgeEmbedding classes.
         Params:
             - edge_to_json: The string that signifies the edge to the jsonified tree
             - embedding_function: Takes input and returns embedding. If not provided, the Tree is marked as Final (cannot be changed)
@@ -319,18 +295,18 @@ class BaseGameTree:
         with open(edge_to_json, "r") as f:
             tree_dict = json.load(f)
 
-        builder = BaseGameTree(tree_dict["name"], tree_dict["dims"], embedding_function)
+        tree = cls(tree_dict["name"], embedding_function)
         for (template_name, template_dict) in tree_dict["embedding_template_dict"].items():
-            builder.embedding_template_dict[template_name] = EdgeEmbedding.from_dict(template_dict, embedding_function)
+            tree.embedding_template_dict[template_name] = EdgeEmbedding.from_dict(template_dict, embedding_function)
 
         for (event_id, event_dict) in tree_dict["event_dict"].items():
-            builder.node_dict[event_id] = GameNode.from_dict(event_dict)
+            tree.node_dict[event_id] = GameNode.from_dict(event_dict)
 
         for (edge_string, embedding_dict) in tree_dict["edge_dict"].items():
             edge = edge_string.split(" ") # Split by " "
-            builder.edge_dict[edge] = EdgeEmbedding.from_dict(embedding_dict, embedding_function)
+            tree.edge_dict[edge] = EdgeEmbedding.from_dict(embedding_dict, embedding_function)
         
-        return builder
+        return tree
 
     def to_dict(self) -> dict:
         """Return the instance in dictionary form to be saved to json"""
@@ -338,8 +314,7 @@ class BaseGameTree:
             "name": self.name,
             "embedding_template_dict": {template_id: template.to_dict() for (template_id, template) in self.embedding_template_dict.items()}, # Kinda optional here
             "event_dict": {event_id: event.to_dict() for (event_id, event) in self.node_dict.items()},
-            "edge_dict": {edge[0]+" "+edge[1]: embedding.to_dict() for (edge, embedding) in self.edge_dict.items()},
-            "dims": self.dims
+            "edge_dict": {edge[0]+" "+edge[1]: embedding.to_dict() for (edge, embedding) in self.edge_dict.items()}
         }
 
     def to_json(self, edge_to_json: str) -> None:
