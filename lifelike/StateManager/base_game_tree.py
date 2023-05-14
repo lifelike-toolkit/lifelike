@@ -257,12 +257,12 @@ class BaseGameTree:
             - embedding_name: Rename the embedding class. Ensure it is unique to avoid unexpected behaviours.
             - embedding_template: The EdgeEmbedding object to use as a template. For saved templates, use 
         """
-        if self.validate_edge(start_id, end_id, embedding_name, embedding_template):
+        if self.validate_edge(start_id, end_id, embedding_template.name):
             # Assigns to edge_dict
             self.edge_dict[(start_id, end_id)] = embedding_template.copy(embedding_name)
             return True
 
-    def validate_edge(self, start_id: str, end_id: str, embedding_name: str, embedding_template: str="default") -> bool:
+    def validate_edge(self, start_id: str, end_id: str, embedding_template_name: str="default") -> bool:
         """Validates new edge_dict entry. Only contains basic validation, should be overidden to prevent undesireable behaviour"""
         if self._final:
             print("Game Tree was marked as Final. No change can be made to it")
@@ -270,7 +270,7 @@ class BaseGameTree:
         elif end_id not in self.node_dict: # Allows for a setup like (_, end_id) where any node can reach end_id
             print("Either start_id or end_id does not exist in event_dict. Must be 2 of {}.".format(self.node_dict.keys()))
             return False
-        elif embedding_template not in self.embedding_template_dict:
+        elif embedding_template_name not in self.embedding_template_dict:
             print("Invalid template: Embedding Template must be one of {}. Create one with add_embedding_template() or use the default template".format(self.embedding_template_dict.keys()))
             return False
         elif (start_id, end_id) in self.edge_dict:
