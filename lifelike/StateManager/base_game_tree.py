@@ -5,9 +5,11 @@ Tunes sequence embeddings to allow the game to more accurately predict player's 
 import numpy
 import json
 from typing import Callable
-from langchain.schema import BaseRetriever, Document
-from langchain.embeddings.base import Embeddings # TODO: Make all embedding_function Embeddings interface
+import uuid
 
+from langchain.schema import Document, BaseRetriever
+from langchain.vectorstores import VectorStore, Chroma
+from langchain.embeddings.base import Embeddings # TODO: Make all embedding_function Embeddings interface
 
 class EdgeEmbedding:
     """Edge embedding dictionary that stores, calculate and allows for retrieval of different preset embeddings"""
@@ -167,7 +169,11 @@ class BaseGameTree:
 
             self.embed = embedding_function
         else:
+            self.embed = None # No embedding function
             self._final = True
+
+        # TODO add persistent option and metadata preset
+        self.vectorstore = Chroma(name, self.embed) # Preset to Chroma TODO make this work with all vectorstore
 
         self.dims = dims
 
@@ -182,9 +188,29 @@ class BaseGameTree:
         # Where left is start event, right is end event, and embedding is the required embedding to go from left to right
         self.edge_dict = {} 
 
+    def add_texts(self, texts: list[str], metadatas: list[dict] = None, ids: list[str] = None, custom_embeddings: list = None) -> list[str]:
+        """
+        Create GameNode and add to GameTree using add_node().
+        Must be overriden if a child of GameNode is used.
+        """
+        if ids is None: # If id not provided, generate it
+            ids = [str(uuid.uuid1()) for _ in texts]
+
+        if custom_embeddings is None:
+            embeddings = self.embed(texts)
+
+        # Text to tree. Does not allow for custom edges
+        for i in range(len(texts)):
+            node = GameNode(ids[i], texts[i], metadatas[i])
+            edge = EdgeEmbedding(ids[i], self.dims, self.embed, embeddings[i], 20) # Tunable embedding with default weight of 20
+            self.add_node(node)
+            self.add_edge('_', node.id, ids[i], edge)
+
+        return ids
+
     def add_node(self, node: GameNode) -> bool:
         """
-        Add a GameNode to the GameTree
+        Add a GameNode to the GameTree. 
         Params:
             - node: a GameNode instance
         """
@@ -221,7 +247,7 @@ class BaseGameTree:
             self.embedding_template_dict[name] = edge_embedding
             return True
 
-    def add_edge(self, start_id: str, end_id: str, embedding_name: str, embedding_template: str="default") -> bool:
+    def add_edge(self, start_id: str, end_id: str, embedding_name: str, embedding_template: EdgeEmbedding) -> bool:
         """
         Add edge to the tree and assign a premade embedding template. 
         Most of the time, you only have to override validate_edge() to modify behaviour.
@@ -229,16 +255,20 @@ class BaseGameTree:
             - start_id: The id of the start event. Must exists in event_dict.
             - end_id: The id of the end event. Must exists in event_dict.
             - embedding_name: Rename the embedding class. Ensure it is unique to avoid unexpected behaviours.
-            - embedding_template: Name of embedding template to use. Must exists in embedding_template_dict.
+            - embedding_template: The EdgeEmbedding object to use as a template. For saved templates, use 
         """
         if self.validate_edge(start_id, end_id, embedding_name, embedding_template):
-            self.edge_dict[(start_id, end_id)] = self.embedding_template_dict[embedding_template].copy(embedding_name)
+            # Assigns to edge_dict
+            self.edge_dict[(start_id, end_id)] = embedding_template.copy(embedding_name)
             return True
 
     def validate_edge(self, start_id: str, end_id: str, embedding_name: str, embedding_template: str="default") -> bool:
         """Validates new edge_dict entry. Only contains basic validation, should be overidden to prevent undesireable behaviour"""
         if self._final:
             print("Game Tree was marked as Final. No change can be made to it")
+            return False
+        elif end_id not in self.node_dict: # Allows for a setup like (_, end_id) where any node can reach end_id
+            print("Either start_id or end_id does not exist in event_dict. Must be 2 of {}.".format(self.node_dict.keys()))
             return False
         elif embedding_template not in self.embedding_template_dict:
             print("Invalid template: Embedding Template must be one of {}. Create one with add_embedding_template() or use the default template".format(self.embedding_template_dict.keys()))
@@ -269,6 +299,13 @@ class BaseGameTree:
     def get_template_options(self) -> list:
         """Get the name of all stored templates"""
         return self.embedding_template_dict.keys()
+
+    def get_template(self, name) -> EdgeEmbedding:
+        if name not in self.get_template_options():
+            print("No embedding with name {} found".format(name))
+            return None
+
+        return self.embedding_template_dict[name]
 
     @staticmethod
     def build_from_json(edge_to_json: str, embedding_function: Callable[[list], list]=None) -> 'BaseGameTree':
@@ -310,9 +347,8 @@ class BaseGameTree:
         with open(edge_to_json, "w") as f:
             json.dump(self.to_dict(), f, indent=4)
 
-    def write_db(self, chroma_client):
-        """Write current tree to a ChromaDB collection. TODO: Make this work with any vectorstore using langchain"""
-        collection = chroma_client.get_collection(name=self.name)
+    def write_db(self):
+        """Write current tree to a ChromaDB collection."""
         # Only need to add the following nodes to chroma, as the starting state does not need to be defined
         embeddings = []
         documents = []
@@ -320,42 +356,15 @@ class BaseGameTree:
         ids=[]
 
         for (edge, embedding) in self.edge_dict.items():
-            target_event_name = edge[1]
-            target_event = self.node_dict[target_event_name]
+            target_node_id = edge[1]
+            target_node = self.node_dict[target_node_id]
 
             embeddings.append(embedding.get_embedding())
-            documents.append(target_event.name)
-            ids.append(target_event_name)
-            metadatas.append({
-                "reachableSequences": json.dumps(target_event.reachable),
-                "reaction": target_event.context # TODO Must change later
-            })
+            documents.append(target_node.context)
+            ids.append(target_node_id)
+            metadatas.append(target_node.metadata)
 
-        collection.add(ids=ids, embeddings=embeddings, metadatas=metadatas, documents=documents)
+        self.vectorstore._collection.add(ids=ids, embeddings=embeddings, metadatas=metadatas, documents=documents)
 
-
-class GameNodeRetriever(BaseRetriever):
-    """
-    Retriever for events in the Game Tree. Requires ChromaDB as langchain vectorstore does not support custom embedding
-    Allows Brain to interact with the vectorstore via the langchain BaseRetriever interface
-    """
-    def __init__(self, tree: BaseGameTree, chroma_client) -> None:
-        """
-        Constructor.
-        Parameters:
-            - tree: a GameTree instance that retrieval will be done on
-            - chroma_client: chromadb client object
-        """
-        chroma_client.reset()
-        chroma_client.create_collection(name=tree.name, embedding_function=tree.embed)
-        self._game_tree = tree
-        self._game_tree.write_db(chroma_client)
-        self._collection = chroma_client.get_collection(name=tree.name)
-
-    def get_relevant_documents(self, query: str, n_results:int = 6) -> list[Document]:
-        # Query from chromadb
-        response = self._collection.query(
-            query_texts=[query],
-            n_results = n_results
-        )
-        return response
+    def get_retriever(self) -> BaseRetriever:
+        return self.vectorstore.as_retriever()
