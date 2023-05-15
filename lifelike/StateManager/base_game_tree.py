@@ -342,5 +342,10 @@ class BaseGameTree:
 
         self.vectorstore._collection.add(ids=ids, embeddings=embeddings, metadatas=metadatas, documents=documents)
 
-    def get_retriever(self) -> BaseRetriever:
-        return self.vectorstore.as_retriever()
+    def get_retriever(self, **kwargs) -> BaseRetriever:
+        """
+        Some possible arguments:
+            - search_type
+            - search_kwargs: {"k": Number of returned results}
+        """
+        return self.vectorstore.as_retriever(**kwargs) # Adding some options
