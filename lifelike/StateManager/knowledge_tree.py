@@ -19,3 +19,4 @@ class KnowledgeTree(BaseGameTree):
         tree = cls(name, embedding_function)
         # TODO: Currently bypasses building tree. Tree is essentially non-functional
         tree.vectorstore = Chroma.from_texts(texts, embedding_function, metadatas, ids)
+        return tree

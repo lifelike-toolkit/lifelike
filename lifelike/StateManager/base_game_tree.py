@@ -1,6 +1,7 @@
 """
 Meant to be used alongside chromadb, but any vectordb that uses KNN will work too.
 Tunes sequence embeddings to allow the game to more accurately predict player's intentions.
+For now, requires chromadb
 """
 import numpy
 import json
