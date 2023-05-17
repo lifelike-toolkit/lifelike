@@ -96,6 +96,7 @@ class Conversations:
         @param llm: langchain llm object
         @return: None, initializes Conversations
         """
+        # TODO: Allow for custom prompt template
         self.path = path
         self.valid = characters
         self.llm = llm
@@ -213,8 +214,10 @@ class Conversations:
         "\n"\
         "Relevant pieces of information:\n"\
         "{history}\n"\
+        "(Only use if relevant to the conversation)\n"\
         "\n"\
-        "(You do not need to use these pieces of information if not relevant)\n"\
+        "Feelings about topic: \n"\
+        "{feelings}\n"\
         "\n"\
         "Conversation:\n"\
         "{log}\n"\
