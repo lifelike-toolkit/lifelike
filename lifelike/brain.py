@@ -216,9 +216,6 @@ class Conversations:
         "{history}\n"\
         "(Only use if relevant to the conversation)\n"\
         "\n"\
-        "Feelings about topic: \n"\
-        "{feelings}\n"\
-        "\n"\
         "Conversation:\n"\
         "{log}\n"\
         "{speaker}:"
