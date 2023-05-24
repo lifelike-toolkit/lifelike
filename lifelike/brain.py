@@ -96,6 +96,7 @@ class Conversations:
         @param llm: langchain llm object
         @return: None, initializes Conversations
         """
+        # TODO: Allow for custom prompt template
         self.path = path
         self.valid = characters
         self.llm = llm
@@ -177,7 +178,7 @@ class Conversations:
         self.context_out(context)
         self.conversations[context]["log"].append([speaker, utterance])
 
-    def generate(self, context: str, muted: Set[str]) -> List[str]:
+    def generate(self, context: str, history: str, muted: Set[str]) -> List[str]:
         """
         @param context: unique context of the conversation
         @param muted: list of muted characters
@@ -213,8 +214,7 @@ class Conversations:
         "\n"\
         "Relevant pieces of information:\n"\
         "{history}\n"\
-        "\n"\
-        "(You do not need to use these pieces of information if not relevant)\n"\
+        "(Only use if relevant to the conversation)\n"\
         "\n"\
         "Conversation:\n"\
         "{log}\n"\
@@ -225,7 +225,7 @@ class Conversations:
                                 "history", "log", "speaker"])
         chain = LLMChain(prompt=prompt, llm=self.llm)
 
-        output = chain.run({"context": context, "background": bg, "history": "", "log": log_str, "speaker": next_speaker})
+        output = chain.run({"context": context, "background": bg, "history": history, "log": log_str, "speaker": next_speaker})
         if output != "":
             output = output.split('\n')[0].lstrip()
         self.append(context, next_speaker, output)
