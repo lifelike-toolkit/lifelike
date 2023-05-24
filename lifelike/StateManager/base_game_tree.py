@@ -165,7 +165,7 @@ class BaseGameTree:
         # Where left is start event, right is end event, and embedding is the required embedding to go from left to right
         self.edge_dict = {} 
 
-    def add_texts(self, texts: list[str], metadatas: list[dict] = None, ids: list[str] = None, custom_embeddings: list = None) -> list[str]:
+    def add_texts(self, texts: list[str], metadatas: list[dict] = None, ids: list[str] = None, custom_embeddings: list[str] = None) -> list[str]:
         """
         Create GameNode and add to GameTree using add_node().
         Must be overriden if a child of GameNode is used.
