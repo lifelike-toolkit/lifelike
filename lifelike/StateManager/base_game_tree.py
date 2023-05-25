@@ -71,7 +71,7 @@ class EdgeEmbedding:
             print("The Embedding is marked as Final. Cannot be tuned.")
             return None
 
-        new_embeddings = self.embed(prompts)
+        new_embeddings = self.embed.embed_documents(prompts)
 
         # Update weighted average
         self.embedding = numpy.average([self.embedding] + new_embeddings, 0, [self.weight]+[1]*len(prompts)).tolist()
@@ -151,7 +151,7 @@ class BaseGameTree:
             print('Tree {} was initialized in final mode'.format(name)) # TODO Final Mode might be excessive in constructor
             self._final = True # Activate Final flag
         
-        self.embed = embedding_function
+        self.embed = embedding_function # TODO Rename this, Embeddings is not a function
 
         # TODO add persistent option and metadata preset
         self.vectorstore = Chroma(name, self.embed) # Preset to Chroma TODO make this work with all vectorstore
@@ -174,7 +174,7 @@ class BaseGameTree:
             ids = [str(uuid.uuid1()) for _ in texts]
 
         if custom_embeddings is None:
-            embeddings = self.embed(texts)
+            embeddings = self.embed.embed_documents(texts)
 
         # Text to tree. Does not allow for custom edges
         for i in range(len(texts)):
