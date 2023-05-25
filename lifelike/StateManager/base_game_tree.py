@@ -247,9 +247,9 @@ class BaseGameTree:
         elif end_id not in self.node_dict: # Allows for a setup like (_, end_id) where any node can reach end_id
             print("Either start_id or end_id does not exist in event_dict. Must be 2 of {}.".format(self.node_dict.keys()))
             return False
-        elif embedding_template_name not in self.embedding_template_dict:
-            print("Invalid template: Embedding Template must be one of {}. Create one with add_embedding_template() or use the default template".format(self.embedding_template_dict.keys()))
-            return False
+        # elif embedding_template_name not in self.embedding_template_dict:
+        #     print("Invalid template: Embedding Template must be one of {}. Create one with add_embedding_template() or use the default template".format(self.embedding_template_dict.keys()))
+        #     return False
         elif (start_id, end_id) in self.edge_dict:
             print("Invalid edge: edge {} already exists".format(start_id + '-' + end_id))
             return False
